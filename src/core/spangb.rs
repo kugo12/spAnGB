@@ -2,7 +2,7 @@
 use crate::core::{Bus, CPU};
 
 pub struct spAnGB {
-    bus: Bus,
+    pub bus: Bus,
     cpu: CPU
 }
 
