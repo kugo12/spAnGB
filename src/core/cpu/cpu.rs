@@ -17,6 +17,8 @@ pub enum CPU_state {
     THUMB
 }
 
+
+
 pub enum Flag {
     N = 0x80000000,  // sign
     Z = 0x40000000,  // zero
@@ -48,7 +50,7 @@ impl std::ops::BitOr<Flag> for u32 {
 const CPU_MODE: [u32; 7] = [0b10010, 0b10011, 0b10111, 0b11011, 0b10001, 0b10000, 0b11111];
 
 pub struct CPU {
-    register: [u32; 16],
+    pub register: [u32; 16],
     bank_reg: [[u32; 3]; 4],
     fiq_reg: [u32; 7],
     fiq_spsr: u32,
@@ -57,14 +59,14 @@ pub struct CPU {
 
     state: CPU_state,
     mode: CPU_mode,
-    pipeline: [u32; 3],
-    lut_thumb: [fn(&mut CPU, &mut Bus, u16); 1024],
-    lut_arm: [fn(&mut CPU, &mut Bus, u32); 4096],
+    pub pipeline: [u32; 3],
+    pub lut_thumb: [fn(&mut CPU, &mut Bus, u16); 1024],
+    pub lut_arm: [fn(&mut CPU, &mut Bus, u32); 4096],
 }
 
 impl CPU {
     pub fn new() -> Self {
-        Self {
+        let mut cpu = Self {
             register: [0; 16],
             bank_reg: [[0; 3]; 4],
             fiq_reg: [0; 7],
@@ -77,7 +79,16 @@ impl CPU {
             pipeline: [0; 3],
             lut_thumb: [CPU::undefined_opcode; 1024],
             lut_arm: [CPU::undefined_opcode; 4096]
-        }
+        };
+
+        cpu.ARM_fill_lut();
+
+        cpu
+    }
+
+    pub fn init(&mut self, bus: &mut Bus) {
+        self.register[15] = 0x08000000;
+        self.arm_fill_pipeline(bus);
     }
 
     pub fn undefined_opcode<T: std::fmt::LowerHex>(&mut self, bus: &mut Bus, instr: T) {
@@ -129,7 +140,7 @@ impl CPU {
     }
 
     #[inline]
-    fn is_condition(&self, cond: u8) -> bool {
+    pub fn is_condition(&self, cond: u8) -> bool {
         match cond {
             0x0 => self.cpsr&Flag::Z != 0,
             0x1 => self.cpsr&Flag::Z == 0,
@@ -148,6 +159,25 @@ impl CPU {
             0xE => true,
             0xF => panic!("Condition 0xF is reserved"),
             _ => panic!("Undefined cond: {:x}", cond)
+        }
+    }
+
+    #[inline]
+    pub fn flush_pipeline(&mut self) {
+        self.pipeline = [0; 3];
+    }
+
+    #[inline]
+    pub fn switch_state(&mut self, bus: &mut Bus, state: u32) {
+        self.flush_pipeline();
+        match state&0x1 {
+            0 => {
+                self.arm_fill_pipeline(bus);
+            },
+            1 => {
+                self.thumb_fill_pipeline(bus);
+            },
+            _ => unreachable!()
         }
     }
 }

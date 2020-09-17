@@ -15,6 +15,8 @@ impl spAnGB {
     }
 
     pub fn run(&mut self) {
+        self.cpu.init(&mut self.bus);
+
         loop {
             self.cpu.tick(&mut self.bus);
             self.bus.tick();
