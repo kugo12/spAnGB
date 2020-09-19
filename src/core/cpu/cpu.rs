@@ -18,7 +18,7 @@ pub enum CPU_state {
 }
 
 
-
+#[derive(Copy, Clone)]
 pub enum Flag {
     N = 0x80000000,  // sign
     Z = 0x40000000,  // zero
@@ -47,6 +47,22 @@ impl std::ops::BitOr<Flag> for u32 {
     }
 }
 
+impl std::ops::Not for Flag {
+    type Output = u32;
+
+    #[inline]
+    fn not(self) -> u32 {
+        !(self as u32)
+    }
+}
+
+impl std::ops::BitOrAssign<Flag> for u32 {
+    #[inline]
+    fn bitor_assign(&mut self, rhs: Flag) {
+        *self = *self | rhs;
+    }
+}
+
 const CPU_MODE: [u32; 7] = [0b10010, 0b10011, 0b10111, 0b11011, 0b10001, 0b10000, 0b11111];
 
 pub struct CPU {
@@ -55,7 +71,7 @@ pub struct CPU {
     fiq_reg: [u32; 7],
     fiq_spsr: u32,
     reg: [u32; 7],
-    cpsr: u32,
+    pub cpsr: u32,
 
     state: CPU_state,
     mode: CPU_mode,
@@ -92,7 +108,7 @@ impl CPU {
     }
 
     pub fn undefined_opcode<T: std::fmt::LowerHex>(&mut self, bus: &mut Bus, instr: T) {
-        panic!("Undefined opcode: {:x}", instr);
+        panic!("Undefined opcode: {:x} at PC: {:x}", instr, self.register[15] - (2* (self.mode as u32+1)));
     }
 
     pub fn set_mode(&mut self, mode: CPU_mode) {
@@ -178,6 +194,13 @@ impl CPU {
                 self.thumb_fill_pipeline(bus);
             },
             _ => unreachable!()
+        }
+    }
+
+    pub fn set_flag(&mut self, flag: Flag, val: bool) {
+        self.cpsr &= !flag;
+        if val {
+            self.cpsr |= flag;
         }
     }
 }

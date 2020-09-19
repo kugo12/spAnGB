@@ -9,8 +9,90 @@ impl CPU {
                 continue;
             }
 
-            if i&0xA00 == 0xA00 {
+            if i&0xE00 == 0xA00 {
                 self.lut_arm[i] = CPU::ARM_b_bl;
+                continue;
+            }
+
+
+            // DATA PROCESSING (btw it should be at the bottom)
+            if i&0xDE0 == 0x000 {
+                self.lut_arm[i] = CPU::ARM_AND;
+                continue;
+            }
+
+            if i&0xDE0 == 0x020 {
+                self.lut_arm[i] = CPU::ARM_EOR;
+                continue;
+            }
+
+            if i&0xDE0 == 0x040 {
+                self.lut_arm[i] = CPU::ARM_SUB;
+                continue;
+            }
+
+            if i&0xDE0 == 0x060 {
+                self.lut_arm[i] = CPU::ARM_RSB;
+                continue;
+            }
+
+            if i&0xDE0 == 0x080 {
+                self.lut_arm[i] = CPU::ARM_ADD;
+                continue;
+            }
+
+            if i&0xDE0 == 0x0A0 {
+                self.lut_arm[i] = CPU::ARM_ADC;
+                continue;
+            }
+
+            if i&0xDE0 == 0x0C0 {
+                self.lut_arm[i] = CPU::ARM_SBC;
+                continue;
+            }
+
+            if i&0xDE0 == 0x0E0 {
+                self.lut_arm[i] = CPU::ARM_RSC;
+                continue;
+            }
+
+            if i&0xDE0 == 0x100 {
+                self.lut_arm[i] = CPU::ARM_TST;
+                continue;
+            }
+
+            if i&0xDE0 == 0x120 {
+                self.lut_arm[i] = CPU::ARM_TEQ;
+                continue;
+            }
+
+            if i&0xDE0 == 0x140 {
+                self.lut_arm[i] = CPU::ARM_CMP;
+                continue;
+            }
+
+            if i&0xDE0 == 0x160 {
+                self.lut_arm[i] = CPU::ARM_CMN;
+                continue;
+            }
+
+            if i&0xDE0 == 0x180 {
+                self.lut_arm[i] = CPU::ARM_ORR;
+                continue;
+            }
+
+            if i&0xDE0 == 0x1A0 {
+                self.lut_arm[i] = CPU::ARM_MOV;
+                continue;
+            }
+
+            if i&0xDE0 == 0x1C0 {
+                self.lut_arm[i] = CPU::ARM_BIC;
+                continue;
+            }
+
+            if i&0xDE0 == 0x1E0 {
+                self.lut_arm[i] = CPU::ARM_MVN;
                 continue;
             }
         }

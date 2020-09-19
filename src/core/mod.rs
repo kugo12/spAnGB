@@ -6,7 +6,7 @@ pub mod utils;
 mod cartridge;
 
 pub use spangb::spAnGB;
-pub use cpu::CPU;
+pub use cpu::{CPU, Flag};
 pub use ppu::PPU;
 pub use bus::Bus;
 pub use cartridge::Cartridge;
