@@ -1,4 +1,4 @@
-use crate::core::{CPU, Bus};
+use crate::core::{CPU, Bus, Flag};
 use crate::core::utils::is_bit_set;
 
 impl CPU {
@@ -11,6 +11,11 @@ impl CPU {
 
             if i&0xE00 == 0xA00 {
                 self.lut_arm[i] = CPU::ARM_b_bl;
+                continue;
+            }
+
+            if i&0xFCF == 0x009 {
+                self.lut_arm[i] = CPU::ARM_MUL_MLA;
                 continue;
             }
 
@@ -128,5 +133,24 @@ impl CPU {
         }
 
         self.register[15] = (self.register[15] as i32 + off) as u32;
+    }
+
+    #[inline]
+    pub fn ARM_MUL_MLA(&mut self, bus: &mut Bus, instr: u32) {
+        let rn = if is_bit_set(instr, 21) {
+            self.register[((instr>>12)&0xF) as usize]
+        } else {
+            0
+        };
+
+        let rs = self.register[((instr>>8)&0xF) as usize];
+        let rm = self.register[(instr&0xF) as usize];
+        let tmp = rm*rs + rn;
+        self.register[((instr>>16)&0xF) as usize] = tmp;
+
+        if is_bit_set(instr, 20) {
+            self.set_flag(Flag::Z, tmp == 0);
+            self.set_flag(Flag::N, tmp&0x80000000 != 0);
+        }
     }
 }
