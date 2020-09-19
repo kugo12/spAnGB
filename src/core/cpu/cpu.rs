@@ -67,14 +67,14 @@ const CPU_MODE: [u32; 7] = [0b10010, 0b10011, 0b10111, 0b11011, 0b10001, 0b10000
 
 pub struct CPU {
     pub register: [u32; 16],
-    bank_reg: [[u32; 3]; 4],
+    pub bank_reg: [[u32; 3]; 4],
     fiq_reg: [u32; 7],
-    fiq_spsr: u32,
+    pub fiq_spsr: u32,
     reg: [u32; 7],
     pub cpsr: u32,
 
-    state: CPU_state,
-    mode: CPU_mode,
+    pub state: CPU_state,
+    pub mode: CPU_mode,
     pub pipeline: [u32; 3],
     pub lut_thumb: [fn(&mut CPU, &mut Bus, u16); 1024],
     pub lut_arm: [fn(&mut CPU, &mut Bus, u32); 4096],

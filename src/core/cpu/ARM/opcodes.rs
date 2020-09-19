@@ -16,6 +16,16 @@ impl CPU {
 
 
             // DATA PROCESSING (btw it should be at the bottom)
+            if i&0xFBF == 0x100 {
+                self.lut_arm[i] = CPU::ARM_MRS;
+                continue;
+            }
+
+            if i&0xFBF == 0x120 || i&0xFB0 == 0x320 {
+                self.lut_arm[i] = CPU::ARM_MSR;
+                continue;
+            }
+
             if i&0xDE0 == 0x000 {
                 self.lut_arm[i] = CPU::ARM_AND;
                 continue;
