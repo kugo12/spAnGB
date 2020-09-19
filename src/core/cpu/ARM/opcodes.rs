@@ -19,6 +19,15 @@ impl CPU {
                 continue;
             }
 
+            if i&0xF8F == 0x089 {
+                if is_bit_set(i as u32, 6) {
+                    self.lut_arm[i] = CPU::ARM_SMULL_SMLAL;
+                } else {
+                    self.lut_arm[i] = CPU::ARM_UMULL_UMLAL;
+                }
+                continue;
+            }
+
 
             // DATA PROCESSING (btw it should be at the bottom)
             if i&0xFBF == 0x100 {
@@ -151,6 +160,54 @@ impl CPU {
         if is_bit_set(instr, 20) {
             self.set_flag(Flag::Z, tmp == 0);
             self.set_flag(Flag::N, tmp&0x80000000 != 0);
+        }
+    }
+
+    #[inline]
+    pub fn ARM_UMULL_UMLAL(&mut self, bus: &mut Bus, instr: u32) {
+        let rm = self.register[(instr&0xF) as usize] as u64;
+        let rs = self.register[((instr>>8)&0xF) as usize] as u64;
+
+        let low = ((instr>>12)&0xF) as usize;
+        let high = ((instr>>16)&0xF) as usize;
+
+        let acc = if is_bit_set(instr, 21) {
+            ((self.register[high] as u64) << 32) | self.register[low] as u64
+        } else {
+            0
+        };
+
+        let tmp = rm*rs + acc;
+        self.register[low] = tmp as u32;
+        self.register[high] = (tmp >> 32) as u32;
+
+        if is_bit_set(instr, 20) {
+            self.set_flag(Flag::Z, tmp == 0);
+            self.set_flag(Flag::N, tmp&0x8000000000000000 != 0);
+        }
+    }
+
+    #[inline]
+    pub fn ARM_SMULL_SMLAL(&mut self, bus: &mut Bus, instr: u32) {
+        let rm = self.register[(instr&0xF) as usize] as i32 as i64;
+        let rs = self.register[((instr>>8)&0xF) as usize] as i32 as i64;
+
+        let low = ((instr>>12)&0xF) as usize;
+        let high = ((instr>>16)&0xF) as usize;
+
+        let acc = if is_bit_set(instr, 21) {
+            ((self.register[high] as i32 as i64) << 32) | self.register[low] as i64
+        } else {
+            0
+        };
+
+        let tmp = rm*rs + acc;
+        self.register[low] = tmp as u32;
+        self.register[high] = (tmp as u64 >> 32) as u32;
+
+        if is_bit_set(instr, 20) {
+            self.set_flag(Flag::Z, tmp == 0);
+            self.set_flag(Flag::N, tmp as u64&0x8000000000000000 != 0);
         }
     }
 }
