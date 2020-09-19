@@ -28,6 +28,16 @@ impl CPU {
                 continue;
             }
 
+            if i&0xC10 == 0x410 {
+                self.lut_arm[i] = CPU::ARM_LDR;
+                continue;
+            }
+
+            if i&0xC10 == 0x400 {
+                self.lut_arm[i] = CPU::ARM_STR;
+                continue;
+            }
+
 
             // DATA PROCESSING (btw it should be at the bottom)
             if i&0xFBF == 0x100 {
@@ -208,6 +218,75 @@ impl CPU {
         if is_bit_set(instr, 20) {
             self.set_flag(Flag::Z, tmp == 0);
             self.set_flag(Flag::N, tmp as u64&0x8000000000000000 != 0);
+        }
+    }
+
+    #[inline]
+    pub fn ARM_LDR(&mut self, bus: &mut Bus, instr: u32) {
+        let offset = if is_bit_set(instr, 25) {
+            self.barrel_shifter_operand(instr, self.register[(instr&0xF) as usize]).0
+        } else {
+            instr&0xFFF
+        };
+
+        let base = ((instr >> 16)&0xF) as usize;
+        let tmp = if is_bit_set(instr, 23) {
+            self.register[base] + offset
+        } else {
+            self.register[base] - offset
+        };
+
+        if is_bit_set(instr, 24) { // pre
+            self.register[((instr >> 12)&0xF) as usize] = if is_bit_set(instr, 22) { // byte
+                bus.read8(tmp) as u32
+            } else {  // word
+                bus.read32(tmp)
+            };
+        } else {
+            self.register[((instr >> 12)&0xF) as usize] = if is_bit_set(instr, 22) { // byte
+                bus.read8(self.register[base]) as u32
+            } else {  // word
+                bus.read32(self.register[base])
+            };
+        }
+
+        if is_bit_set(instr, 21) {
+            self.register[base] = tmp;
+        }
+    }
+    
+    #[inline]
+    pub fn ARM_STR(&mut self, bus: &mut Bus, instr: u32) {
+        let offset = if is_bit_set(instr, 25) {
+            self.barrel_shifter_operand(instr, self.register[(instr&0xF) as usize]).0
+        } else {
+            instr&0xFFF
+        };
+
+        let base = ((instr >> 16)&0xF) as usize;
+        let tmp = if is_bit_set(instr, 23) {
+            self.register[base] + offset
+        } else {
+            self.register[base] - offset
+        };
+
+        let src = self.register[((instr >> 12)&0xF) as usize];
+        if is_bit_set(instr, 24) { // pre
+            if is_bit_set(instr, 22) { // byte
+                bus.write8(tmp, src as u8);
+            } else {  // word
+                bus.write32(tmp, src);
+            }
+        } else {
+            if is_bit_set(instr, 22) { // byte
+                bus.write8(self.register[base], src as u8);
+            } else {  // word
+                bus.write32(self.register[base], src);
+            }
+        }
+
+        if is_bit_set(instr, 21) {
+            self.register[base] = tmp;
         }
     }
 }
