@@ -30,6 +30,16 @@ impl CPU {
                 continue;
             }
 
+            if i&0xE10 == 0x810 {
+                self.lut_arm[i] = CPU::ARM_LDM;
+                continue;
+            }
+
+            if i&0xE10 == 0x800 {
+                self.lut_arm[i] = CPU::ARM_STM;
+                continue;
+            }
+
             if i&0xE09 == 0x009 {
                 if is_bit_set(i as u32, 4) { // load
                     self.lut_arm[i] = CPU::ARM_LDRHSB;
