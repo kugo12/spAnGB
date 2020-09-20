@@ -30,6 +30,15 @@ impl CPU {
                 continue;
             }
 
+            if i&0xE09 == 0x009 {
+                if is_bit_set(i as u32, 4) { // load
+                    self.lut_arm[i] = CPU::ARM_LDRHSB;
+                } else { // store
+                    self.lut_arm[i] = CPU::ARM_STRHSB;
+                }
+                continue;
+            }
+
             if i&0xF8F == 0x089 {
                 if is_bit_set(i as u32, 6) {
                     self.lut_arm[i] = CPU::ARM_SMULL_SMLAL;
@@ -321,5 +330,84 @@ impl CPU {
         if is_bit_set(instr, 21) {
             self.register[base] = tmp;
         }
+    }
+
+    #[inline]
+    pub fn ARM_LDRHSB(&mut self, bus: &mut Bus, instr: u32) { // LDRH LDRSH LDRB LDRSB
+        let offset = if is_bit_set(instr, 22) {
+            ((instr >> 4)&0xF0) | (instr&0xF)
+        } else {
+            self.register[(instr&0xF) as usize]
+        };
+
+        let base = ((instr >> 16)&0xF) as usize;
+        let tmp = if is_bit_set(instr, 23) {
+            self.register[base] + offset
+        } else {
+            self.register[base] - offset
+        };
+
+        if is_bit_set(instr, 24) { // pre
+            self.register[((instr >> 12)&0xF) as usize] = match (instr>>5)&0x3 {
+                0 => bus.read8(tmp) as u32,
+                1 => bus.read16(tmp) as u32,
+                2 => bus.read8(tmp) as i8 as i32 as u32,
+                3 => bus.read16(tmp) as i16 as i32 as u32,
+                _ => unreachable!()
+            };
+        } else {
+            self.register[((instr >> 12)&0xF) as usize] = match (instr>>5)&0x3 {
+                0 => bus.read8(self.register[base]) as u32,
+                1 => bus.read16(self.register[base]) as u32,
+                2 => bus.read8(self.register[base]) as i8 as i32 as u32,
+                3 => bus.read16(self.register[base]) as i16 as i32 as u32,
+                _ => unreachable!()
+            };
+        }
+
+        if is_bit_set(instr, 21) {
+            self.register[base] = tmp;
+        }
+
+    }
+
+    #[inline]
+    pub fn ARM_STRHSB(&mut self, bus: &mut Bus, instr: u32) { // STRH STRSH STRB STRSB
+        let offset = if is_bit_set(instr, 22) {
+            ((instr >> 4)&0xF0) | (instr&0xF)
+        } else {
+            self.register[(instr&0xF) as usize]
+        };
+
+        let base = ((instr >> 16)&0xF) as usize;
+        let tmp = if is_bit_set(instr, 23) {
+            self.register[base] + offset
+        } else {
+            self.register[base] - offset
+        };
+        let src = self.register[((instr >> 12)&0xF) as usize];
+
+        if is_bit_set(instr, 24) { // pre
+            match (instr>>5)&0x3 {
+                0 => bus.write8(tmp, src as u8),
+                1 => bus.write16(tmp, src as u16),
+                2 => bus.write8(tmp, src as i32 as i8 as u8),
+                3 => bus.write16(tmp, src as i32 as i16 as u16),
+                _ => unreachable!()
+            };
+        } else {
+            match (instr>>5)&0x3 {
+                0 => bus.write8(self.register[base], src as u8),
+                1 => bus.write16(self.register[base], src as u16),
+                2 => bus.write8(self.register[base], src as i32 as i8 as u8),
+                3 => bus.write16(self.register[base], src as i32 as i16 as u16),
+                _ => unreachable!()
+            };
+        }
+
+        if is_bit_set(instr, 21) {
+            self.register[base] = tmp;
+        }
+
     }
 }
