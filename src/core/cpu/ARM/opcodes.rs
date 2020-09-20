@@ -1,9 +1,15 @@
 use crate::core::{CPU, Bus, Flag};
 use crate::core::utils::is_bit_set;
+use crate::core::cpu::CPU_mode;
 
 impl CPU {
     pub fn ARM_fill_lut(&mut self) {
         for i in 0 ..= 0xFFF {  // 00001111111100000000000011110000  0x0FF000F0
+            if i&0xF00 == 0xF00 {
+                self.lut_arm[i] = CPU::ARM_SWI;
+                continue;
+            }
+
             if i == 0x121 {
                 self.lut_arm[i] = CPU::ARM_bx;
                 continue;
@@ -16,6 +22,11 @@ impl CPU {
 
             if i&0xFCF == 0x009 {
                 self.lut_arm[i] = CPU::ARM_MUL_MLA;
+                continue;
+            }
+
+            if i&0xFBF == 0x109 {
+                self.lut_arm[i] = CPU::ARM_SWP;
                 continue;
             }
 
@@ -155,6 +166,12 @@ impl CPU {
     }
 
     #[inline]
+    pub fn ARM_SWI(&mut self, bus: &mut Bus, instr: u32) {
+        self.set_mode(CPU_mode::svc);
+        self.register[15] = 0x08;
+    }
+
+    #[inline]
     pub fn ARM_MUL_MLA(&mut self, bus: &mut Bus, instr: u32) {
         let rn = if is_bit_set(instr, 21) {
             self.register[((instr>>12)&0xF) as usize]
@@ -218,6 +235,22 @@ impl CPU {
         if is_bit_set(instr, 20) {
             self.set_flag(Flag::Z, tmp == 0);
             self.set_flag(Flag::N, tmp as u64&0x8000000000000000 != 0);
+        }
+    }
+
+    #[inline]
+    pub fn ARM_SWP(&mut self, bus: &mut Bus, instr: u32) {
+        let addr = self.register[((instr >> 16)&0xF) as usize];
+        let src = self.register[(instr&0xF) as usize];
+
+        if is_bit_set(instr, 22) {  // byte
+            let tmp = bus.read8(addr);
+            bus.write8(addr, src as u8);
+            self.register[((instr >> 12)&0xF) as usize] = tmp as u32;
+        } else {  // word
+            let tmp = bus.read32(addr);
+            bus.write32(addr, src);
+            self.register[((instr >> 12)&0xF) as usize] = tmp;
         }
     }
 
