@@ -27,6 +27,15 @@ impl Bus {
         }
     }
 
+    pub fn dump_ewram(&self) {
+        for i in 0..self.wram.len() {
+            print!("{:x}", self.wram[i]);
+            if i%32 == 0 {
+                print!("\n");
+            }
+        }
+    }
+
     pub fn load_bios(&mut self, p: &Path) {
         let mut data: Vec<u8> = vec![];
         {

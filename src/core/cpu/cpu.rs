@@ -98,12 +98,13 @@ impl CPU {
         };
 
         cpu.ARM_fill_lut();
+        cpu.THUMB_fill_lut();
 
         cpu
     }
 
     pub fn init(&mut self, bus: &mut Bus) {
-        self.register[15] = 0x08000000;
+        self.register[15] = 0x00000000;
         self.arm_fill_pipeline(bus);
     }
 
@@ -152,6 +153,7 @@ impl CPU {
 
     #[inline]
     pub fn tick(&mut self, bus: &mut Bus) {
+        // println!("{:x} {:x}, ", self.pipeline[2], self.register[15]-8);
         [CPU::tick_ARM, CPU::tick_THUMB][self.state as usize](self, bus);
     }
 

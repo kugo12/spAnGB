@@ -172,7 +172,7 @@ impl CPU {
     #[inline]
     pub fn ARM_b_bl(&mut self, bus: &mut Bus, instr: u32) {
         let off = if is_bit_set(instr, 23) {
-            (((instr&0xFFFFFF) << 2) | 0x80000000) as i32
+            (((instr&0xFFFFFF) | 0x3F000000) as i32) << 2
         } else {
             ((instr&0xFFFFFF) << 2) as i32
         };
@@ -182,6 +182,7 @@ impl CPU {
         }
 
         self.register[15] = (self.register[15] as i32 + off) as u32;
+        self.arm_refill_pipeline(bus);
     }
 
     #[inline]

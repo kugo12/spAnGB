@@ -20,6 +20,14 @@ impl CPU {
         self.pipeline[0] = bus.read32(self.register[15]);
     }
 
+    #[inline]
+    pub fn arm_refill_pipeline(&mut self, bus: &mut Bus) {
+        self.pipeline[1] = bus.read32(self.register[15]);
+        self.register[15] += 4;
+        self.pipeline[0] = bus.read32(self.register[15]);
+    }
+
+    #[inline]
     pub fn arm_fill_pipeline(&mut self, bus: &mut Bus) {
         self.pipeline[2] = bus.read32(self.register[15]);
         self.register[15] += 4;
