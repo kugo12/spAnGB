@@ -17,14 +17,13 @@ impl CPU {
     pub fn ARM_AND(&mut self, bus: &mut Bus, instr: u32) {
         let op1 = self.register[((instr >> 16)&0xF) as usize];
         let (op2, carry) = self.ARM_get_2nd_operand(instr);
-        let dest = &mut self.register[((instr >> 12)&0xF) as usize];
-        *dest = op1&op2;
-        let dest = *dest;
+        let tmp = op1&op2;
+        self.register_write(((instr >> 12)&0xF) as usize, tmp, bus);
 
         if is_bit_set(instr, 20) {
             self.set_flag(Flag::C, carry);
-            self.set_flag(Flag::Z, dest == 0);
-            self.set_flag(Flag::N, dest&0x80000000 != 0);
+            self.set_flag(Flag::Z, tmp == 0);
+            self.set_flag(Flag::N, tmp&0x80000000 != 0);
         }
     }
 
@@ -32,14 +31,13 @@ impl CPU {
     pub fn ARM_EOR(&mut self, bus: &mut Bus, instr: u32) {  // it's just XOR lol
         let op1 = self.register[((instr >> 16)&0xF) as usize];
         let (op2, carry) = self.ARM_get_2nd_operand(instr);
-        let dest = &mut self.register[((instr >> 12)&0xF) as usize];
-        *dest = op1^op2;
-        let dest = *dest;
+        let tmp= op1^op2;
+        self.register_write(((instr >> 12)&0xF) as usize, tmp, bus);
 
         if is_bit_set(instr, 20) {
             self.set_flag(Flag::C, carry);
-            self.set_flag(Flag::Z, dest == 0);
-            self.set_flag(Flag::N, dest&0x80000000 != 0);
+            self.set_flag(Flag::Z, tmp == 0);
+            self.set_flag(Flag::N, tmp&0x80000000 != 0);
         }
     }
 
@@ -47,14 +45,13 @@ impl CPU {
     pub fn ARM_SUB(&mut self, bus: &mut Bus, instr: u32) {
         let op1 = self.register[((instr >> 16)&0xF) as usize];
         let (op2, carry) = self.ARM_get_2nd_operand(instr);
-        let dest = &mut self.register[((instr >> 12)&0xF) as usize];
-        *dest = op1-op2;
-        let dest = *dest;
+        let tmp = op1-op2;
+        self.register_write(((instr >> 12)&0xF) as usize, tmp, bus);
 
         if is_bit_set(instr, 20) {
             self.set_flag(Flag::C, carry);
-            self.set_flag(Flag::Z, dest == 0);
-            self.set_flag(Flag::N, dest&0x80000000 != 0);
+            self.set_flag(Flag::Z, tmp == 0);
+            self.set_flag(Flag::N, tmp&0x80000000 != 0);
         }
     }
 
@@ -62,14 +59,13 @@ impl CPU {
     pub fn ARM_RSB(&mut self, bus: &mut Bus, instr: u32) {
         let op1 = self.register[((instr >> 16)&0xF) as usize];
         let (op2, carry) = self.ARM_get_2nd_operand(instr);
-        let dest = &mut self.register[((instr >> 12)&0xF) as usize];
-        *dest = op2-op1;
-        let dest = *dest;
+        let tmp = op2-op1;
+        self.register_write(((instr >> 12)&0xF) as usize, tmp, bus);
 
         if is_bit_set(instr, 20) {
             self.set_flag(Flag::C, carry);
-            self.set_flag(Flag::Z, dest == 0);
-            self.set_flag(Flag::N, dest&0x80000000 != 0);
+            self.set_flag(Flag::Z, tmp == 0);
+            self.set_flag(Flag::N, tmp&0x80000000 != 0);
         }
     }
 
@@ -77,14 +73,13 @@ impl CPU {
     pub fn ARM_ADD(&mut self, bus: &mut Bus, instr: u32) {
         let op1 = self.register[((instr >> 16)&0xF) as usize];
         let (op2, carry) = self.ARM_get_2nd_operand(instr);
-        let dest = &mut self.register[((instr >> 12)&0xF) as usize];
-        *dest = op1+op2;
-        let dest = *dest;
+        let tmp = op1+op2;
+        self.register_write(((instr >> 12)&0xF) as usize, tmp, bus);
 
         if is_bit_set(instr, 20) {
             self.set_flag(Flag::C, carry);
-            self.set_flag(Flag::Z, dest == 0);
-            self.set_flag(Flag::N, dest&0x80000000 != 0);
+            self.set_flag(Flag::Z, tmp == 0);
+            self.set_flag(Flag::N, tmp&0x80000000 != 0);
         }
     }
 
@@ -92,15 +87,14 @@ impl CPU {
     pub fn ARM_ADC(&mut self, bus: &mut Bus, instr: u32) {
         let op1 = self.register[((instr >> 16)&0xF) as usize];
         let (op2, carry) = self.ARM_get_2nd_operand(instr);
-        let dest = &mut self.register[((instr >> 12)&0xF) as usize];
         let c = (self.cpsr&Flag::C != 0) as u32;
-        *dest = op1+op2+c;
-        let dest = *dest;
+        let tmp = op1+op2+c;
+        self.register_write(((instr >> 12)&0xF) as usize, tmp, bus);
 
         if is_bit_set(instr, 20) {
             self.set_flag(Flag::C, carry);
-            self.set_flag(Flag::Z, dest == 0);
-            self.set_flag(Flag::N, dest&0x80000000 != 0);
+            self.set_flag(Flag::Z, tmp == 0);
+            self.set_flag(Flag::N, tmp&0x80000000 != 0);
         }
     }
 
@@ -108,15 +102,14 @@ impl CPU {
     pub fn ARM_SBC(&mut self, bus: &mut Bus, instr: u32) {
         let op1 = self.register[((instr >> 16)&0xF) as usize];
         let (op2, carry) = self.ARM_get_2nd_operand(instr);
-        let dest = &mut self.register[((instr >> 12)&0xF) as usize];
         let c = (self.cpsr&Flag::C != 0) as u32;
-        *dest = op1-op2+c-1;
-        let dest = *dest;
+        let tmp = op1-op2+c-1; 
+        self.register_write(((instr >> 12)&0xF) as usize, tmp, bus);
 
         if is_bit_set(instr, 20) {
             self.set_flag(Flag::C, carry);
-            self.set_flag(Flag::Z, dest == 0);
-            self.set_flag(Flag::N, dest&0x80000000 != 0);
+            self.set_flag(Flag::Z, tmp == 0);
+            self.set_flag(Flag::N, tmp&0x80000000 != 0);
         }
     }
 
@@ -124,15 +117,14 @@ impl CPU {
     pub fn ARM_RSC(&mut self, bus: &mut Bus, instr: u32) {
         let op1 = self.register[((instr >> 16)&0xF) as usize];
         let (op2, carry) = self.ARM_get_2nd_operand(instr);
-        let dest = &mut self.register[((instr >> 12)&0xF) as usize];
         let c = (self.cpsr&Flag::C != 0) as u32;
-        *dest = op2-op1+c-1;
-        let dest = *dest;
+        let tmp = op2-op1+c-1;
+        self.register_write(((instr >> 12)&0xF) as usize, tmp, bus);
 
         if is_bit_set(instr, 20) {
             self.set_flag(Flag::C, carry);
-            self.set_flag(Flag::Z, dest == 0);
-            self.set_flag(Flag::N, dest&0x80000000 != 0);
+            self.set_flag(Flag::Z, tmp == 0);
+            self.set_flag(Flag::N, tmp&0x80000000 != 0);
         }
     }
 
@@ -192,21 +184,20 @@ impl CPU {
     pub fn ARM_ORR(&mut self, bus: &mut Bus, instr: u32) {
         let op1 = self.register[((instr >> 16)&0xF) as usize];
         let (op2, carry) = self.ARM_get_2nd_operand(instr);
-        let dest = &mut self.register[((instr >> 12)&0xF) as usize];
-        *dest = op1|op2;
-        let dest = *dest;
+        let tmp= op1|op2;
+        self.register_write(((instr >> 12)&0xF) as usize, tmp, bus);
 
         if is_bit_set(instr, 20) {
             self.set_flag(Flag::C, carry);
-            self.set_flag(Flag::Z, dest == 0);
-            self.set_flag(Flag::N, dest&0x80000000 != 0);
+            self.set_flag(Flag::Z, tmp == 0);
+            self.set_flag(Flag::N, tmp&0x80000000 != 0);
         }
     }
 
     #[inline]
     pub fn ARM_MOV(&mut self, bus: &mut Bus, instr: u32) {
         let (op2, carry) = self.ARM_get_2nd_operand(instr);
-        self.register[((instr >> 12)&0xF) as usize] = op2;
+        self.register_write(((instr >> 12)&0xF) as usize, op2, bus);
 
         if is_bit_set(instr, 20) {
             self.set_flag(Flag::C, carry);
@@ -219,21 +210,20 @@ impl CPU {
     pub fn ARM_BIC(&mut self, bus: &mut Bus, instr: u32) {
         let op1 = self.register[((instr >> 16)&0xF) as usize];
         let (op2, carry) = self.ARM_get_2nd_operand(instr);
-        let dest = &mut self.register[((instr >> 12)&0xF) as usize];
-        *dest = op1& !op2;
-        let dest = *dest;
+        let tmp = op1& !op2;
+        self.register_write(((instr >> 12)&0xF) as usize, tmp, bus);
 
         if is_bit_set(instr, 20) {
             self.set_flag(Flag::C, carry);
-            self.set_flag(Flag::Z, dest == 0);
-            self.set_flag(Flag::N, dest&0x80000000 != 0);
+            self.set_flag(Flag::Z, tmp == 0);
+            self.set_flag(Flag::N, tmp&0x80000000 != 0);
         }
     }
 
     #[inline]
     pub fn ARM_MVN(&mut self, bus: &mut Bus, instr: u32) {
         let (op2, carry) = self.ARM_get_2nd_operand(instr);
-        self.register[((instr >> 12)&0xF) as usize] = !op2;
+        self.register_write(((instr >> 12)&0xF) as usize, !op2, bus);
 
         if is_bit_set(instr, 20) {
             self.set_flag(Flag::C, carry);
@@ -254,8 +244,8 @@ impl CPU {
         } else {
             self.cpsr
         };
-
-        self.register[dest] = psr;
+        
+        self.register_write(dest, psr, bus);
     }
 
     #[inline]

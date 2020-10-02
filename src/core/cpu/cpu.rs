@@ -17,6 +17,16 @@ pub enum CPU_state {
     THUMB
 }
 
+impl From<u32> for CPU_state {
+    fn from(x: u32) -> CPU_state {
+        match x&1 {
+            0 => CPU_state::ARM,
+            1 => CPU_state::THUMB,
+            _ => unreachable!()
+        }
+    }
+}
+
 
 #[derive(Copy, Clone)]
 pub enum Flag {
@@ -104,7 +114,7 @@ impl CPU {
     }
 
     pub fn init(&mut self, bus: &mut Bus) {
-        self.register[15] = 0x00000000;
+        self.register[15] = 0x08000000;
         self.arm_fill_pipeline(bus);
     }
 
@@ -151,6 +161,17 @@ impl CPU {
         }
     }
 
+    pub fn register_write(&mut self, index: usize, value: u32, bus: &mut Bus) {
+        self.register[index] = value;
+        if index == 15 {
+            self.flush_pipeline();
+            match self.state {
+                CPU_state::ARM => self.arm_fill_pipeline(bus),
+                CPU_state::THUMB => self.thumb_fill_pipeline(bus)
+            }
+        }
+    }
+
     #[inline]
     pub fn tick(&mut self, bus: &mut Bus) {
         // println!("{:x} {:x}, ", self.pipeline[2], self.register[15]-8);
@@ -188,14 +209,14 @@ impl CPU {
     #[inline]
     pub fn switch_state(&mut self, bus: &mut Bus, state: u32) {
         self.flush_pipeline();
-        match state&0x1 {
-            0 => {
+        self.state = CPU_state::from(state);
+        match self.state {
+            CPU_state::ARM => {
                 self.arm_fill_pipeline(bus);
             },
-            1 => {
+            CPU_state::THUMB => {
                 self.thumb_fill_pipeline(bus);
-            },
-            _ => unreachable!()
+            }
         }
     }
 

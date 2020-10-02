@@ -10,7 +10,8 @@ impl CPU {
         let h2 = (is_bit_set(instr as u32, 6) as usize)*8;
 
         let rs = self.register[((instr >> 3)&0x7) as usize + h2];
-        self.register[(instr&0x7) as usize + h1] += rs;
+        let rd = (instr&0x7) as usize + h1;
+        self.register_write(rd, self.register[rd] + rs, bus);
     }
 
     pub fn THUMB_HILO_MOV(&mut self, bus: &mut Bus, instr: u16) {
@@ -18,13 +19,12 @@ impl CPU {
         let h2 = (is_bit_set(instr as u32, 6) as usize)*8;
 
         let rs = self.register[((instr >> 3)&0x7) as usize + h2];
-        self.register[(instr&0x7) as usize + h1] = rs;
+        self.register_write((instr&0x7) as usize + h1, rs, bus);
     }
 
     pub fn THUMB_HILO_CMP(&mut self, bus: &mut Bus, instr: u16) {
         let h1 = (is_bit_set(instr as u32, 7) as usize)*8;
         let h2 = (is_bit_set(instr as u32, 6) as usize)*8;
-        let d = (instr&0x7) as usize + h1;
 
         let rs = self.register[((instr >> 3)&0x7) as usize + h2];
         let tmp = self.register[(instr&0x7) as usize + h1] - rs;

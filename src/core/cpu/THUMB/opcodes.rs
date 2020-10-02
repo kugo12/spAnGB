@@ -279,7 +279,7 @@ impl CPU {
 
     pub fn THUMB_LDR_STR_SP_REL(&mut self, bus: &mut Bus, instr: u16) {
         let addr = {
-            let rb = self.register[7];
+            let rb = self.register[13];
             let off = ((instr&0xFF) << 2) as u32;
             rb + off
         };
@@ -335,6 +335,8 @@ impl CPU {
             let tmp = self.register[14] + off;
             self.register[14] = self.register[15] - 4;
             self.register[15] = tmp;
+            self.flush_pipeline();
+            self.thumb_fill_pipeline(bus);
         } else { // high
             let off = (instr as u32&0x7FF) << 12;
             self.register[14] = self.register[15] + off;

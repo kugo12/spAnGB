@@ -62,7 +62,7 @@ impl CPU {
                     addr += 4;
                 }
             }
-            self.register[base] = addr;
+            self.register_write(base, addr, bus);
         }
     }
 
@@ -101,7 +101,7 @@ impl CPU {
 
         for (yes, reg) in regs.iter() {
             if *yes {
-                self.register[*reg] = bus.read32(addr);
+                self.register_write(*reg, bus.read32(addr), bus);
                 if up {
                     addr += 4;
                 } else {
@@ -122,7 +122,7 @@ impl CPU {
                     addr += 4;
                 }
             }
-            self.register[base] = addr;
+            self.register_write(base, addr, bus);
         }
     }
 }

@@ -189,6 +189,7 @@ impl CPU {
     pub fn ARM_SWI(&mut self, bus: &mut Bus, instr: u32) {
         self.set_mode(CPU_mode::svc);
         self.register[15] = 0x08;
+        self.arm_refill_pipeline(bus);
     }
 
     #[inline]
@@ -202,7 +203,7 @@ impl CPU {
         let rs = self.register[((instr>>8)&0xF) as usize];
         let rm = self.register[(instr&0xF) as usize];
         let tmp = rm*rs + rn;
-        self.register[((instr>>16)&0xF) as usize] = tmp;
+        self.register_write(((instr>>16)&0xF) as usize, tmp, bus);
 
         if is_bit_set(instr, 20) {
             self.set_flag(Flag::Z, tmp == 0);
@@ -225,8 +226,8 @@ impl CPU {
         };
 
         let tmp = rm*rs + acc;
-        self.register[low] = tmp as u32;
-        self.register[high] = (tmp >> 32) as u32;
+        self.register_write(low, tmp as u32, bus);
+        self.register_write(high, (tmp >> 32) as u32, bus);
 
         if is_bit_set(instr, 20) {
             self.set_flag(Flag::Z, tmp == 0);
@@ -249,8 +250,8 @@ impl CPU {
         };
 
         let tmp = rm*rs + acc;
-        self.register[low] = tmp as u32;
-        self.register[high] = (tmp as u64 >> 32) as u32;
+        self.register_write(low, tmp as u32, bus);
+        self.register_write(high, (tmp >> 32) as u32, bus);
 
         if is_bit_set(instr, 20) {
             self.set_flag(Flag::Z, tmp == 0);
@@ -266,11 +267,11 @@ impl CPU {
         if is_bit_set(instr, 22) {  // byte
             let tmp = bus.read8(addr);
             bus.write8(addr, src as u8);
-            self.register[((instr >> 12)&0xF) as usize] = tmp as u32;
+            self.register_write(((instr >> 12)&0xF) as usize, tmp as u32, bus);
         } else {  // word
             let tmp = bus.read32(addr);
             bus.write32(addr, src);
-            self.register[((instr >> 12)&0xF) as usize] = tmp;
+            self.register_write(((instr >> 12)&0xF) as usize, tmp, bus);
         }
     }
 
@@ -290,21 +291,23 @@ impl CPU {
         };
 
         if is_bit_set(instr, 24) { // pre
-            self.register[((instr >> 12)&0xF) as usize] = if is_bit_set(instr, 22) { // byte
+            let v = if is_bit_set(instr, 22) { // byte
                 bus.read8(tmp) as u32
             } else {  // word
                 bus.read32(tmp)
             };
+            self.register_write(((instr >> 12)&0xF) as usize, v, bus);
         } else {
-            self.register[((instr >> 12)&0xF) as usize] = if is_bit_set(instr, 22) { // byte
+            let v = if is_bit_set(instr, 22) { // byte
                 bus.read8(self.register[base]) as u32
             } else {  // word
                 bus.read32(self.register[base])
             };
+            self.register_write(((instr >> 12)&0xF) as usize, v, bus);
         }
 
         if is_bit_set(instr, 21) {
-            self.register[base] = tmp;
+            self.register_write(base, tmp, bus);
         }
     }
     
@@ -339,7 +342,7 @@ impl CPU {
         }
 
         if is_bit_set(instr, 21) {
-            self.register[base] = tmp;
+            self.register_write(base, tmp, bus);
         }
     }
 
@@ -359,25 +362,27 @@ impl CPU {
         };
 
         if is_bit_set(instr, 24) { // pre
-            self.register[((instr >> 12)&0xF) as usize] = match (instr>>5)&0x3 {
+            let v = match (instr>>5)&0x3 {
                 0 => bus.read8(tmp) as u32,
                 1 => bus.read16(tmp) as u32,
                 2 => bus.read8(tmp) as i8 as i32 as u32,
                 3 => bus.read16(tmp) as i16 as i32 as u32,
                 _ => unreachable!()
             };
+            self.register_write(((instr >> 12)&0xF) as usize, v, bus);
         } else {
-            self.register[((instr >> 12)&0xF) as usize] = match (instr>>5)&0x3 {
+            let v = match (instr>>5)&0x3 {
                 0 => bus.read8(self.register[base]) as u32,
                 1 => bus.read16(self.register[base]) as u32,
                 2 => bus.read8(self.register[base]) as i8 as i32 as u32,
                 3 => bus.read16(self.register[base]) as i16 as i32 as u32,
                 _ => unreachable!()
             };
+            self.register_write(((instr >> 12)&0xF) as usize, v, bus);
         }
 
         if is_bit_set(instr, 21) {
-            self.register[base] = tmp;
+            self.register_write(base, tmp, bus);
         }
 
     }
@@ -417,7 +422,7 @@ impl CPU {
         }
 
         if is_bit_set(instr, 21) {
-            self.register[base] = tmp;
+            self.register_write(base, tmp, bus);
         }
 
     }
