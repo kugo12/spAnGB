@@ -18,6 +18,13 @@ impl CPU {
         self.pipeline[0] = bus.read16(self.register[15]) as u32;
     }
 
+    #[inline]
+    pub fn thumb_refill_pipeline(&mut self, bus: &mut Bus) {
+        self.pipeline[1] = bus.read16(self.register[15]) as u32;
+        self.register[15] += 2;
+        self.pipeline[0] = bus.read16(self.register[15]) as u32;
+    }
+
     pub fn thumb_fill_pipeline(&mut self, bus: &mut Bus) {
         self.pipeline[2] = bus.read16(self.register[15]) as u32;
         self.register[15] += 2;

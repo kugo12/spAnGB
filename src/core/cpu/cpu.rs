@@ -164,10 +164,9 @@ impl CPU {
     pub fn register_write(&mut self, index: usize, value: u32, bus: &mut Bus) {
         self.register[index] = value;
         if index == 15 {
-            self.flush_pipeline();
             match self.state {
-                CPU_state::ARM => self.arm_fill_pipeline(bus),
-                CPU_state::THUMB => self.thumb_fill_pipeline(bus)
+                CPU_state::ARM => self.arm_refill_pipeline(bus),
+                CPU_state::THUMB => self.thumb_refill_pipeline(bus)
             }
         }
     }
@@ -208,15 +207,10 @@ impl CPU {
 
     #[inline]
     pub fn switch_state(&mut self, bus: &mut Bus, state: u32) {
-        self.flush_pipeline();
         self.state = CPU_state::from(state);
         match self.state {
-            CPU_state::ARM => {
-                self.arm_fill_pipeline(bus);
-            },
-            CPU_state::THUMB => {
-                self.thumb_fill_pipeline(bus);
-            }
+            CPU_state::ARM => self.arm_refill_pipeline(bus),
+            CPU_state::THUMB => self.thumb_refill_pipeline(bus)
         }
     }
 

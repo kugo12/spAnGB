@@ -317,16 +317,14 @@ impl CPU {
         if self.is_condition((instr >> 8) as u8) {
             let off = (instr&0xFF) as i8 as i32;
             self.register[15] = (self.register[15] as i32 + off) as u32;
-            self.flush_pipeline();
-            self.thumb_fill_pipeline(bus);
+            self.thumb_refill_pipeline(bus);
         }
     }
 
     pub fn THUMB_BRANCH(&mut self, bus: &mut Bus, instr: u16) {
         let addr = (self.register[15] - 4) + ((instr << 1)&0xFFF) as u32;
         self.register[15] = addr;
-        self.flush_pipeline();
-        self.thumb_fill_pipeline(bus);
+        self.thumb_refill_pipeline(bus);
     }
 
     pub fn THUMB_LONG_BRANCH_LINK(&mut self, bus: &mut Bus, instr: u16) {
@@ -335,8 +333,7 @@ impl CPU {
             let tmp = self.register[14] + off;
             self.register[14] = self.register[15] - 4;
             self.register[15] = tmp;
-            self.flush_pipeline();
-            self.thumb_fill_pipeline(bus);
+            self.thumb_refill_pipeline(bus);
         } else { // high
             let off = (instr as u32&0x7FF) << 12;
             self.register[14] = self.register[15] + off;
@@ -386,8 +383,7 @@ impl CPU {
             self.register[15] = bus.read32(self.register[13]+sp_update);
             sp_update += 4;
 
-            self.flush_pipeline();
-            self.thumb_fill_pipeline(bus);
+            self.thumb_refill_pipeline(bus);
         }
 
         self.register[13] += sp_update;
