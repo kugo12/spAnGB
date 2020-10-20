@@ -1,8 +1,11 @@
+#[macro_use]
+pub mod utils;
+
 mod spangb;
 mod bus;
 mod cpu;
-mod ppu;
-pub mod utils;
+pub mod ppu;
+pub mod io;
 mod cartridge;
 
 pub use spangb::spAnGB;

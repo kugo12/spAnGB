@@ -25,6 +25,15 @@ impl CPU {
                 continue;
             }
 
+            if i&0xF8F == 0x089 {
+                if is_bit_set(i as u32, 6) {
+                    self.lut_arm[i] = CPU::ARM_SMULL_SMLAL;
+                } else {
+                    self.lut_arm[i] = CPU::ARM_UMULL_UMLAL;
+                }
+                continue;
+            }
+
             if i&0xFBF == 0x109 {
                 self.lut_arm[i] = CPU::ARM_SWP;
                 continue;
@@ -45,15 +54,6 @@ impl CPU {
                     self.lut_arm[i] = CPU::ARM_LDRHSB;
                 } else { // store
                     self.lut_arm[i] = CPU::ARM_STRHSB;
-                }
-                continue;
-            }
-
-            if i&0xF8F == 0x089 {
-                if is_bit_set(i as u32, 6) {
-                    self.lut_arm[i] = CPU::ARM_SMULL_SMLAL;
-                } else {
-                    self.lut_arm[i] = CPU::ARM_UMULL_UMLAL;
                 }
                 continue;
             }
@@ -174,14 +174,15 @@ impl CPU {
         let off = if is_bit_set(instr, 23) {
             (((instr&0xFFFFFF) | 0x3F000000) as i32) << 2
         } else {
-            ((instr&0xFFFFFF) << 2) as i32
+            ((instr&0xFFFFFF) as i32) << 2
         };
+        // let off = ((instr << 8) as i32 >> 6) as u32;
 
         if is_bit_set(instr, 24) {
             self.register[14] = self.register[15] - 4;
         }
 
-        self.register[15] = (self.register[15] as i32 + off) as u32;
+        self.register[15] = self.register[15] + off as u32;
         self.arm_refill_pipeline(bus);
     }
 
@@ -190,6 +191,7 @@ impl CPU {
         self.set_mode(CPU_mode::svc);
         self.register[15] = 0x08;
         self.arm_refill_pipeline(bus);
+        println!("SWI {:x}", instr);
     }
 
     #[inline]
@@ -261,24 +263,23 @@ impl CPU {
 
     #[inline]
     pub fn ARM_SWP(&mut self, bus: &mut Bus, instr: u32) {
-        let addr = self.register[((instr >> 16)&0xF) as usize];
-        let src = self.register[(instr&0xF) as usize];
+        let rn = self.register[((instr >> 16)&0xF) as usize];
+        let rm = self.register[(instr&0xF) as usize];
+        let d = ((instr >> 12)&0xF) as usize;
 
         if is_bit_set(instr, 22) {  // byte
-            let tmp = bus.read8(addr);
-            bus.write8(addr, src as u8);
-            self.register_write(((instr >> 12)&0xF) as usize, tmp as u32, bus);
+            self.register_write(d, bus.read8(rn) as u32, bus);
+            bus.write8(rn, rm as u8);
         } else {  // word
-            let tmp = bus.read32(addr);
-            bus.write32(addr, src);
-            self.register_write(((instr >> 12)&0xF) as usize, tmp, bus);
+            self.register_write(d, bus.read32(rn& !3).rotate_right((rn&3) << 3), bus);
+            bus.write32(rn& !3, rm);
         }
     }
 
     #[inline]
     pub fn ARM_LDR(&mut self, bus: &mut Bus, instr: u32) {
         let offset = if is_bit_set(instr, 25) {
-            self.barrel_shifter_operand(instr, self.register[(instr&0xF) as usize]).0
+            self.barrel_shifter_operand(instr>>4, self.register[(instr&0xF) as usize]).0
         } else {
             instr&0xFFF
         };
@@ -294,25 +295,27 @@ impl CPU {
             let v = if is_bit_set(instr, 22) { // byte
                 bus.read8(tmp) as u32
             } else {  // word
-                bus.read32(tmp)
+                bus.read32(tmp& !3).rotate_right((tmp&3) << 3)
             };
+
+            if is_bit_set(instr, 21) {
+                self.register_write(base, tmp, bus);
+            }
             self.register_write(((instr >> 12)&0xF) as usize, v, bus);
         } else {
             let v = if is_bit_set(instr, 22) { // byte
                 bus.read8(self.register[base]) as u32
             } else {  // word
-                bus.read32(self.register[base])
+                bus.read32(self.register[base]).rotate_right((self.register[base]&3) << 3)
             };
-            self.register_write(((instr >> 12)&0xF) as usize, v, bus);
-        }
-
-        if is_bit_set(instr, 21) {
             self.register_write(base, tmp, bus);
+            self.register_write(((instr >> 12)&0xF) as usize, v, bus);
         }
     }
     
     #[inline]
     pub fn ARM_STR(&mut self, bus: &mut Bus, instr: u32) {
+        self.register[15] += 4;
         let offset = if is_bit_set(instr, 25) {
             self.barrel_shifter_operand(instr, self.register[(instr&0xF) as usize]).0
         } else {
@@ -333,15 +336,17 @@ impl CPU {
             } else {  // word
                 bus.write32(tmp, src);
             }
+            self.register[15] -= 4;
+            if is_bit_set(instr, 21) {
+                self.register_write(base, tmp, bus);
+            }
         } else {
             if is_bit_set(instr, 22) { // byte
                 bus.write8(self.register[base], src as u8);
             } else {  // word
                 bus.write32(self.register[base], src);
             }
-        }
-
-        if is_bit_set(instr, 21) {
+            self.register[15] -= 4;
             self.register_write(base, tmp, bus);
         }
     }
@@ -361,30 +366,24 @@ impl CPU {
             self.register[base] - offset
         };
 
-        if is_bit_set(instr, 24) { // pre
-            let v = match (instr>>5)&0x3 {
-                0 => bus.read8(tmp) as u32,
-                1 => bus.read16(tmp) as u32,
-                2 => bus.read8(tmp) as i8 as i32 as u32,
-                3 => bus.read16(tmp) as i16 as i32 as u32,
-                _ => unreachable!()
-            };
-            self.register_write(((instr >> 12)&0xF) as usize, v, bus);
+        let addr = if is_bit_set(instr, 24) {
+            tmp
         } else {
-            let v = match (instr>>5)&0x3 {
-                0 => bus.read8(self.register[base]) as u32,
-                1 => bus.read16(self.register[base]) as u32,
-                2 => bus.read8(self.register[base]) as i8 as i32 as u32,
-                3 => bus.read16(self.register[base]) as i16 as i32 as u32,
-                _ => unreachable!()
-            };
-            self.register_write(((instr >> 12)&0xF) as usize, v, bus);
-        }
+            self.register[base]
+        };
+        
+        let v = match (instr>>5)&0x3 {
+            //0 => bus.read8(addr) as u32, // u8
+            1 => (bus.read16(addr& !1) as u32).rotate_right((addr&1) << 3), // u16
+            2 => bus.read8(addr) as i8 as i32 as u32, // i8
+            3 => (bus.read16(addr) as i16 as i32).wrapping_shr((addr&0x1) << 3) as u32, // i16
+            _ => unreachable!()
+        };
 
-        if is_bit_set(instr, 21) {
+        if is_bit_set(instr, 21) || !is_bit_set(instr, 24) {
             self.register_write(base, tmp, bus);
         }
-
+        self.register_write(((instr >> 12)&0xF) as usize, v, bus);
     }
 
     #[inline]
@@ -411,6 +410,9 @@ impl CPU {
                 3 => bus.write16(tmp, src as i32 as i16 as u16),
                 _ => unreachable!()
             };
+            if is_bit_set(instr, 21) {
+                self.register_write(base, tmp, bus);
+            }
         } else {
             match (instr>>5)&0x3 {
                 0 => bus.write8(self.register[base], src as u8),
@@ -419,9 +421,6 @@ impl CPU {
                 3 => bus.write16(self.register[base], src as i32 as i16 as u16),
                 _ => unreachable!()
             };
-        }
-
-        if is_bit_set(instr, 21) {
             self.register_write(base, tmp, bus);
         }
 

@@ -1,66 +1,82 @@
 use crate::core::{CPU, Bus, Flag};
 use crate::core::utils::is_bit_set;
 
-pub const BARREL_SHIFT: [fn(&mut CPU, u32, u32) -> (u32, bool); 4] = [CPU::barrel_shifter_logical_left, CPU::barrel_shifter_logical_right, CPU::barrel_shifter_arithmethic_right, CPU::barrel_shifter_rotate_right];
+pub const BARREL_SHIFT: [fn(&mut CPU, u32, u32) -> (u32, bool); 5] = [CPU::barrel_shifter_logical_left, CPU::barrel_shifter_logical_right, CPU::barrel_shifter_arithmethic_right, CPU::barrel_shifter_rotate_right, CPU::barrel_shifter_rotate_right_extended];
 
 
 impl CPU {
     #[inline]
     pub fn barrel_shifter_operand(&mut self, operand: u32, val: u32) -> (u32, bool) {
-        let amount = if is_bit_set(operand, 4) {
-            self.register[((operand&0xF00) >> 8) as usize]&0xF
+        let mut shift_type = ((operand&0x6) >> 1) as usize;
+        let amount = if is_bit_set(operand, 0) {
+            self.register[((operand&0xF0) >> 4) as usize]&0xFF  
         } else {
-            (operand&0xF80) >> 7
+            let mut imm = (operand&0xF8) >> 3;
+            if imm == 0 {
+                match shift_type {
+                    1 | 2 => imm = 32,
+                    3 => shift_type = 4,
+                    _ => ()
+                }
+            }
+            imm
         };
-        
-        BARREL_SHIFT[((operand&0x60) >> 5) as usize](self, val, amount)
+
+        BARREL_SHIFT[shift_type](self, val, amount)
     }
 
     #[inline]
     pub fn barrel_shifter_logical_left(&mut self, val: u32, amount: u32) -> (u32, bool) {
-        let carry = if amount > 32 {
-            false
+        if amount > 31 {
+            (0, (amount == 32)&&(val&0x1 != 0))
         } else if amount == 0 {
-            return (val, self.cpsr&Flag::C != 0)
+            (val, self.cpsr&Flag::C != 0)
         } else {
-            is_bit_set(val, (32 - amount) as usize)
-        };
-
-        (val<<amount, carry)
+            (val<<amount, is_bit_set(val, (32 - amount) as usize))
+        }
     }
 
     #[inline]
     pub fn barrel_shifter_logical_right(&mut self, val: u32, amount: u32) -> (u32, bool) {
-        let carry = if amount > 32 {
-            false
+        if amount > 31 {
+            (0, (amount==32)&&(val&0x80000000 != 0))
         } else if amount == 0 {
-            return (val, self.cpsr&Flag::C != 0)
+            (val, self.cpsr&Flag::C != 0)
         } else {
-            is_bit_set(val, (amount-1) as usize)
-        };
-
-        (val>>amount, carry)
+            (val>>amount, is_bit_set(val, (amount-1) as usize))
+        }
     }
 
     #[inline]
     pub fn barrel_shifter_arithmethic_right(&mut self, val: u32, mut amount: u32) -> (u32, bool) {
-        if amount > 32 || amount == 0 {
-            amount = 32;
-        }
-        let carry = is_bit_set(val, (amount - 1) as usize);
+        if amount > 31 {
+            ((val as i32).wrapping_shr(31) as u32, val&0x80000000 != 0)
+        } else {
+            let carry = if amount != 0 { 
+                is_bit_set(val, (amount - 1) as usize) 
+            } else { 
+                self.cpsr&Flag::C != 0
+            };
 
-        ((val as i32 >> amount as i32) as u32, carry)
+            ((val as i32).wrapping_shr(amount) as u32, carry)
+        }
     }
 
     #[inline]
     pub fn barrel_shifter_rotate_right(&mut self, val: u32, mut amount: u32) -> (u32, bool) {
-        if amount == 0 {  // RR extended
-            let carry_in = (self.cpsr&Flag::C) << 2;
-            let carry_out = val&0x1 != 0;
-            return ((val >> 1) | carry_in, carry_out)
+        if amount == 0 {
+            (val, self.cpsr&Flag::C != 0)
         } else {
-            let carry = is_bit_set(val, (amount%31) as usize); // idk if this is enough
-            return (val.rotate_right(amount), carry)
+            let tmp = val.rotate_right(amount);
+            (tmp, tmp&0x80000000 != 0)
         }
+    }
+
+    
+    #[inline]
+    pub fn barrel_shifter_rotate_right_extended(&mut self, val: u32, mut amount: u32) -> (u32, bool) {
+        let carry_in = (self.cpsr&Flag::C) << 2;
+        let carry_out = val&0x1 != 0;
+        return ((val >> 1) | carry_in, carry_out)
     }
 }

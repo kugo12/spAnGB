@@ -1,5 +1,8 @@
 use crate::core::Bus;
 
+extern crate itertools;
+use itertools::Itertools;
+
 #[derive(PartialEq, Copy, Clone)]
 pub enum CPU_mode {
     irq,
@@ -11,7 +14,22 @@ pub enum CPU_mode {
     sys,  // system
 }
 
-#[derive(Copy, Clone)]
+impl From<u32> for CPU_mode {
+    fn from(rhs: u32) -> Self {
+        match rhs&0x1F {
+            0b10000 => Self::usr,
+            0b10001 => Self::fiq,
+            0b10010 => Self::irq,
+            0b10011 => Self::svc,
+            0b10111 => Self::abt,
+            0b11011 => Self::und,
+            0b11111 => Self::sys,
+            _ => panic!("Invalid mode: {:x}", rhs&0x1F)
+        }
+    }
+}
+
+#[derive(Copy, Clone, PartialEq)]
 pub enum CPU_state {
     ARM,
     THUMB
@@ -101,7 +119,7 @@ impl CPU {
             cpsr: 0,
 
             state: CPU_state::ARM,
-            mode: CPU_mode::usr,
+            mode: CPU_mode::sys,
             pipeline: [0; 3],
             lut_thumb: [CPU::undefined_opcode; 1024],
             lut_arm: [CPU::undefined_opcode; 4096]
@@ -114,12 +132,17 @@ impl CPU {
     }
 
     pub fn init(&mut self, bus: &mut Bus) {
+        self.register[0] = 0x08000000;
+        self.register[1] = 0xEA;
+        self.register[13] = 0x3007F00;
+        self.cpsr = 0x6000001F;
+
         self.register[15] = 0x08000000;
         self.arm_fill_pipeline(bus);
     }
 
     pub fn undefined_opcode<T: std::fmt::LowerHex>(&mut self, bus: &mut Bus, instr: T) {
-        panic!("Undefined opcode: {:x} at PC: {:x}", instr, self.register[15] - (2* (self.mode as u32+1)));
+        panic!("Undefined opcode: {:x} at PC: {:x}, pipeline: {:x}", instr, self.register[15] - (2* (self.mode as u32+1)), self.pipeline.iter().format(" "));
     }
 
     pub fn set_mode(&mut self, mode: CPU_mode) {
@@ -173,8 +196,26 @@ impl CPU {
 
     #[inline]
     pub fn tick(&mut self, bus: &mut Bus) {
-        // println!("{:x} {:x}, ", self.pipeline[2], self.register[15]-8);
-        [CPU::tick_ARM, CPU::tick_THUMB][self.state as usize](self, bus);
+        if self.pipeline[2] == 0 {
+            panic!("{:x}, {:x}", self.register[15] - 8, self.register[15] - 4);
+        }
+        if self.state == CPU_state::ARM {
+            // println!("ARM Instruction {:08x} at {:x}", self.pipeline[2], self.register[15]-8);
+            // self.print_regs();
+            self.tick_ARM(bus);
+        } else {
+            // println!("THUMB Instruction {:04x} at {:x}", self.pipeline[2], self.register[15]-4);
+            // self.print_regs();
+            self.tick_THUMB(bus)
+        }
+    }
+
+    pub fn print_regs(&self) {
+        println!("r0: {:08x} r1: {:08x} r2: {:08x} r3: {:08x}", self.register[0], self.register[1], self.register[2], self.register[3]);
+        println!("r4: {:08x} r5: {:08x} r6: {:08x} r7: {:08x}", self.register[4], self.register[5], self.register[6], self.register[7]);
+        println!("r8: {:08x} r9: {:08x} r10: {:08x} r11: {:08x}", self.register[8], self.register[9], self.register[10], self.register[11]);
+        println!("r12: {:08x} r13: {:08x} r14: {:08x} r15: {:08x}", self.register[12], self.register[13], self.register[14], self.register[15]);
+        println!("cpsr: {:08x}", self.cpsr);
     }
 
     #[inline]
@@ -195,7 +236,7 @@ impl CPU {
             0xC => (self.cpsr&Flag::Z == 0) && ((self.cpsr&Flag::N != 0) == (self.cpsr&Flag::V != 0)),
             0xD => (self.cpsr&Flag::Z != 0) || ((self.cpsr&Flag::N != 0) != (self.cpsr&Flag::V != 0)),
             0xE => true,
-            0xF => panic!("Condition 0xF is reserved"),
+            0xF => true, //panic!("Condition 0xF is reserved"),
             _ => panic!("Undefined cond: {:x}", cond)
         }
     }
@@ -208,6 +249,7 @@ impl CPU {
     #[inline]
     pub fn switch_state(&mut self, bus: &mut Bus, state: u32) {
         self.state = CPU_state::from(state);
+        self.set_flag(Flag::T, self.state == CPU_state::THUMB);
         match self.state {
             CPU_state::ARM => self.arm_refill_pipeline(bus),
             CPU_state::THUMB => self.thumb_refill_pipeline(bus)

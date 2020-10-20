@@ -3,8 +3,40 @@ use std::fs::File;
 use std::path::Path;
 
 
-use crate::core::{PPU, Cartridge};
+use crate::core::{PPU, Cartridge, io, io::MemoryMappedRegister};
 
+
+macro_rules! get_MMIO_reg {
+    (u8, $self:expr, $addr:expr) => {
+        match $addr {
+            0 => &mut $self.ppu.dispcnt as &mut dyn MemoryMappedRegister,
+            0x4 => &mut $self.ppu.dispstat,
+            0x130 => &mut $self.key_input,
+            0x208 => &mut $self.ime,
+            _ => panic!("Access to u8 unhandled MMIO reg at: {:x}", $addr)
+        }
+    };
+    (u16, $self:expr, $addr:expr) => {
+        match $addr {
+            0 => &mut $self.ppu.dispcnt as &mut dyn MemoryMappedRegister,
+            0x4 => &mut $self.ppu.dispstat,
+            0x6 => &mut $self.ppu.vcount,
+            0x8 => &mut $self.dummy_reg,
+            0x130 => &mut $self.key_input,
+            0x208 => &mut $self.ime,
+            _ => panic!("Access to u16 unhandled MMIO reg at: {:x}", $addr)
+        }
+    };
+    (u32, $self:expr, $addr:expr) => {
+        match $addr {
+            0 => &mut $self.ppu.dispcnt as &mut dyn MemoryMappedRegister,
+            0x4 => &mut $self.ppu.dispstat,
+            0x130 => &mut $self.key_input,
+            0x208 => &mut $self.ime,
+            _ => panic!("Access to u32 unhandled MMIO reg at: {:x}", $addr)
+        }
+    };
+}
 
 pub struct Bus {
     wram: Box<[u8; 256*1024]>,  // on-board wram
@@ -13,6 +45,10 @@ pub struct Bus {
 
     ppu: PPU,
     pub cartridge: Cartridge,
+
+    dummy_reg: io::DummyRegister,
+    ime: io::InterruptMasterEnable,
+    key_input: io::KeyInput
 }
 
 impl Bus {
@@ -23,16 +59,17 @@ impl Bus {
             bios: vec![],
 
             ppu: PPU::new(),
-            cartridge: Cartridge::new()
+            cartridge: Cartridge::new(),
+
+            dummy_reg: io::DummyRegister {},
+            ime: io::InterruptMasterEnable::new(),
+            key_input: io::KeyInput::new()
         }
     }
 
     pub fn dump_ewram(&self) {
         for i in 0..self.wram.len() {
-            print!("{:x}", self.wram[i]);
-            if i%32 == 0 {
-                print!("\n");
-            }
+            print!("{}", self.wram[i] as char);
         }
     }
 
@@ -60,26 +97,33 @@ impl Bus {
             0x00000000 ..= 0x00003FFF => {
                 self.bios[addr as usize]
             },
-            0x02000000 ..= 0x0203FFFF => {
+            0x02000000 ..= 0x02FFFFFF => {
                 addr &= 0x3FFFF;
                 self.wram[addr as usize]
             },
-            0x03000000 ..= 0x03007FFF => {
+            0x03000000 ..= 0x03FFFFFF => {
                 addr &= 0x7FFF;
                 self.iwram[addr as usize]
             }
-            0x04000000 ..= 0x040003FE => {  // TODO: implement mmio
+            0x04000000 ..= 0x040003FE => {
                 addr &= 0x3FE;
-                0
+                get_MMIO_reg!(u8, self, addr).read8(addr)
             },
-            0x05000000 ..= 0x07FFFFFF => {  // TODO: map ppu memory
-                0
+            0x05000000 ..= 0x07FFFFFF => {
+                self.ppu.read8(addr)
             },
-            0x08000000 ..= 0x09FFFFFF => {
-                addr -= 0x08000000;
-                self.cartridge.rom[addr as usize]
+            0x08000000 ..= 0x0DFFFFFF => {
+                addr &= 0x01FFFFFF;
+                if addr as usize >= self.cartridge.rom.len() {
+                    0
+                } else {
+                    self.cartridge.rom[addr as usize]
+                }
+            },
+            _ => {
+                println!("Unhandled read8 from {:x}", addr);
+                0
             }
-            _ => 0
         }
     }
 
@@ -87,36 +131,35 @@ impl Bus {
         addr &= 0x0FFFFFFE;
         match addr&0x0FFFFFFF {
             0x00000000 ..= 0x00003FFF => {
-                let tmp = &self.bios[addr as usize..addr as usize+2];
-                let tmp = [tmp[0], tmp[1]];
-                u16::from_le_bytes(tmp)
+                bus_read_arr!(u16, self.bios, addr as usize)
             },
-            0x02000000 ..= 0x0203FFFF => {
+            0x02000000 ..= 0x02FFFFFF => {
                 addr &= 0x3FFFF;
-                let tmp = &self.wram[addr as usize..addr as usize+2];
-                let tmp = [tmp[0], tmp[1]];
-                u16::from_le_bytes(tmp)
+                bus_read_arr!(u16, self.wram, addr as usize)
             },
-            0x03000000 ..= 0x03007FFF => {
+            0x03000000 ..= 0x03FFFFFF => {
                 addr &= 0x7FFF;
-                let tmp = &self.iwram[addr as usize..addr as usize+2];
-                let tmp = [tmp[0], tmp[1]];
-                u16::from_le_bytes(tmp)
+                bus_read_arr!(u16, self.iwram, addr as usize)
             }
-            0x04000000 ..= 0x040003FE => {  // TODO: implement mmio
+            0x04000000 ..= 0x040003FE => {
                 addr &= 0x3FE;
-                0
+                get_MMIO_reg!(u16, self, addr).read16(addr)
             },
-            0x05000000 ..= 0x07FFFFFF => {  // TODO: map ppu memory
-                0
+            0x05000000 ..= 0x07FFFFFF => {
+                self.ppu.read16(addr)
             },
-            0x08000000 ..= 0x09FFFFFF => {
-                addr -= 0x08000000;
-                let tmp = &self.cartridge.rom[addr as usize..addr as usize+2];
-                let tmp = [tmp[0], tmp[1]];
-                u16::from_le_bytes(tmp)
+            0x08000000 ..= 0x0DFFFFFF => {
+                addr &= 0x01FFFFFF;
+                if addr as usize >= self.cartridge.rom.len() {
+                    0
+                } else {
+                    bus_read_arr!(u16, self.cartridge.rom, addr as usize)
+                }
+            },
+            _ => {
+                println!("Unhandled read16 from {:x}", addr);
+                0
             }
-            _ => 0
         }
     }
 
@@ -124,112 +167,102 @@ impl Bus {
         addr &= 0x0FFFFFFC;
         match addr&0x0FFFFFFF {
             0x00000000 ..= 0x00003FFF => {
-                let tmp = &self.bios[addr as usize..addr as usize+4];
-                let tmp = [tmp[0], tmp[1], tmp[2], tmp[3]];
-                u32::from_le_bytes(tmp)
+                bus_read_arr!(u32, self.bios, addr as usize)
             },
-            0x02000000 ..= 0x0203FFFF => {
+            0x02000000 ..= 0x02FFFFFF => {
                 addr &= 0x3FFFF;
-                let tmp = &self.wram[addr as usize..addr as usize+4];
-                let tmp = [tmp[0], tmp[1], tmp[2], tmp[3]];
-                u32::from_le_bytes(tmp)
+                bus_read_arr!(u32, self.wram, addr as usize)
             },
-            0x03000000 ..= 0x03007FFF => {
+            0x03000000 ..= 0x03FFFFFF => {
                 addr &= 0x7FFF;
-                let tmp = &self.iwram[addr as usize..addr as usize+4];
-                let tmp = [tmp[0], tmp[1], tmp[2], tmp[3]];
-                u32::from_le_bytes(tmp)
+                bus_read_arr!(u32, self.iwram, addr as usize)
             }
-            0x04000000 ..= 0x040003FE => {  // TODO: implement mmio
+            0x04000000 ..= 0x040003FE => {
                 addr &= 0x3FE;
-                0
+                get_MMIO_reg!(u32, self, addr).read32(addr)
             },
-            0x05000000 ..= 0x07FFFFFF => {  // TODO: map ppu memory
-                0
+            0x05000000 ..= 0x07FFFFFF => {
+                self.ppu.read32(addr)
             },
-            0x08000000 ..= 0x09FFFFFF => {
-                addr -= 0x08000000;
-                let tmp = &self.cartridge.rom[addr as usize..addr as usize+4];
-                let tmp = [tmp[0], tmp[1], tmp[2], tmp[3]];
-                u32::from_le_bytes(tmp)
+            0x08000000 ..= 0x0DFFFFFF => {
+                addr &= 0x01FFFFFF;
+                if addr as usize >= self.cartridge.rom.len() {
+                    0
+                } else {
+                    bus_read_arr!(u32, self.cartridge.rom, addr as usize)
+                }
+            },
+            _ => {
+                println!("Unhandled read32 from {:x}", addr);
+                0
             }
-            _ => 0
         }
     }
 
     pub fn write8(&mut self, mut addr: u32, val: u8) {
         addr &= 0x0FFFFFFF;
         match addr&0x0FFFFFFF {
-            0x02000000 ..= 0x0203FFFF => {
+            0x02000000 ..= 0x02FFFFFF => {
                 addr &= 0x3FFFF;
                 self.wram[addr as usize] = val;
             },
-            0x03000000 ..= 0x03007FFF => {
+            0x03000000 ..= 0x03FFFFFF => {
                 addr &= 0x7FFF;
                 self.iwram[addr as usize] = val;
             }
-            0x04000000 ..= 0x040003FE => {  // TODO: implement mmio
+            0x04000000 ..= 0x040003FE => {
                 addr &= 0x3FE;
-                
+                get_MMIO_reg!(u8, self, addr).write8(addr, val);
             },
-            0x05000000 ..= 0x07FFFFFF => {  // TODO: map ppu memory
-                
+            0x05000000 ..= 0x07FFFFFF => {
+                self.ppu.write16(addr, (val as u16) | ((val as u16) << 8))
             },
-            _ => ()
+            _ => println!("Unhandled write8 to {:x}, value: {:x}", addr, val)
         }
     }
 
     pub fn write16(&mut self, mut addr: u32, val: u16) {
-        let val = val.to_le_bytes();
         addr &= 0x0FFFFFFE;
         match addr&0x0FFFFFFF {
-            0x02000000 ..= 0x0203FFFF => {
+            0x02000000 ..= 0x02FFFFFF => {
                 addr &= 0x3FFFF;
-                self.wram[addr as usize] = val[0];
-                self.wram[addr as usize+1] = val[1];
+                bus_write_arr!(u16, self.wram, addr as usize, val);
             },
-            0x03000000 ..= 0x03007FFF => {
+            0x03000000 ..= 0x03FFFFFF => {
                 addr &= 0x7FFF;
-                self.iwram[addr as usize] = val[0];
-                self.iwram[addr as usize+1] = val[1];
+                bus_write_arr!(u16, self.iwram, addr as usize, val);
             }
-            0x04000000 ..= 0x040003FE => {  // TODO: implement mmio
+            0x04000000 ..= 0x040003FE => {
                 addr &= 0x3FE;
-
+                get_MMIO_reg!(u16, self, addr).write16(addr, val);
             },
-            0x05000000 ..= 0x07FFFFFF => {  // TODO: map ppu memory
-                
+            0x05000000 ..= 0x07FFFFFF => {
+                self.ppu.write16(addr, val)
             },
-            _ => ()
+            _ => println!("Unhandled write16 to {:x}, value: {:x}", addr, val)
         }
     }
 
     pub fn write32(&mut self, mut addr: u32, val: u32) {
-        let val = val.to_le_bytes();
         addr &= 0x0FFFFFFC;
-        match addr&0x0FFFFFFF {
-            0x02000000 ..= 0x0203FFFF => {
+        match addr&0x0FFFFFFFF {
+            0x00000000 ..= 0x0003FFF => {},
+            0x02000000 ..= 0x02FFFFFF => {
                 addr &= 0x3FFFF;
-                self.wram[addr as usize] = val[0];
-                self.wram[addr as usize+1] = val[1];
-                self.wram[addr as usize+2] = val[2];
-                self.wram[addr as usize+3] = val[3]; 
+                bus_write_arr!(u32, self.wram, addr as usize, val);
             },
-            0x03000000 ..= 0x03007FFF => {
+            0x03000000 ..= 0x03FFFFFF => {
                 addr &= 0x7FFF;
-                self.iwram[addr as usize] = val[0];
-                self.iwram[addr as usize+1] = val[1];
-                self.iwram[addr as usize+2] = val[2];
-                self.iwram[addr as usize+3] = val[3];
+                bus_write_arr!(u32, self.iwram, addr as usize, val);
             }
-            0x04000000 ..= 0x040003FE => {  // TODO: implement mmio
+            0x04000000 ..= 0x040003FE => {
                 addr &= 0x3FE;
-
+                get_MMIO_reg!(u32, self, addr).write32(addr, val);
             },
-            0x05000000 ..= 0x07FFFFFF => {  // TODO: map ppu memory
-                
+            0x05000000 ..= 0x07FFFFFF => {
+                self.ppu.write32(addr, val)
             },
-            _ => ()
+            _ => println!("Unhandled write32 to {:x}, value: {:x}", addr, val)
         }
 
     }
