@@ -204,7 +204,7 @@ impl CPU {
 
         let rs = self.register[((instr>>8)&0xF) as usize];
         let rm = self.register[(instr&0xF) as usize];
-        let tmp = rm*rs + rn;
+        let tmp = rm.wrapping_mul(rs).wrapping_add(rn);
         self.register_write(((instr>>16)&0xF) as usize, tmp, bus);
 
         if is_bit_set(instr, 20) {
@@ -246,7 +246,7 @@ impl CPU {
         let high = ((instr>>16)&0xF) as usize;
 
         let acc = if is_bit_set(instr, 21) {
-            ((self.register[high] as i32 as i64) << 32) | self.register[low] as i64
+            (((self.register[high] as u64) << 32) | self.register[low] as u64) as i64
         } else {
             0
         };
@@ -423,6 +423,5 @@ impl CPU {
             };
             self.register_write(base, tmp, bus);
         }
-
     }
 }

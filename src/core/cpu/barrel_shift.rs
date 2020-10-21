@@ -1,11 +1,11 @@
 use crate::core::{CPU, Bus, Flag};
 use crate::core::utils::is_bit_set;
 
-pub const BARREL_SHIFT: [fn(&mut CPU, u32, u32) -> (u32, bool); 5] = [CPU::barrel_shifter_logical_left, CPU::barrel_shifter_logical_right, CPU::barrel_shifter_arithmethic_right, CPU::barrel_shifter_rotate_right, CPU::barrel_shifter_rotate_right_extended];
+const BARREL_SHIFT: [fn(&mut CPU, u32, u32) -> (u32, bool); 5] = [CPU::barrel_shifter_logical_left, CPU::barrel_shifter_logical_right, CPU::barrel_shifter_arithmethic_right, CPU::barrel_shifter_rotate_right, CPU::barrel_shifter_rotate_right_extended];
 
 
 impl CPU {
-    #[inline]
+    #[inline(always)]
     pub fn barrel_shifter_operand(&mut self, operand: u32, val: u32) -> (u32, bool) {
         let mut shift_type = ((operand&0x6) >> 1) as usize;
         let amount = if is_bit_set(operand, 0) {

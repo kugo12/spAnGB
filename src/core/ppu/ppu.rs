@@ -3,7 +3,7 @@ use raylib::prelude::*;
 use crate::core::ppu::io::*;
 use crate::core::io::MemoryMappedRegister;
 
-const ScreenTextureSize: Rectangle = Rectangle {
+const SCREEN_RECT: Rectangle = Rectangle {
     height: 160.,
     width: 240.,
     x: 0.,
@@ -11,7 +11,6 @@ const ScreenTextureSize: Rectangle = Rectangle {
 };
 
 const WH_RATIO: f32 = 240./160.;
-const REFRESH_RATE: usize = 16_000_000 / 60;
 
 const HDRAW_CYCLES: u32 = 960;
 const HBLANK_CYCLES: u32 = 272;
@@ -54,8 +53,8 @@ impl PPU_state {
 }
 
 
-struct Draw {
-    handle: RaylibHandle,
+pub struct Draw {
+    pub handle: RaylibHandle,
     thread: RaylibThread,
 
     screen_texture: Texture2D,
@@ -83,7 +82,7 @@ impl Draw {
             screen_texture: txt,
             buffer: Box::new([100; 240*160*3]),
             screen_position: Vector2::new(0., 0.),
-            screen_size: ScreenTextureSize
+            screen_size: SCREEN_RECT
         }
     }
 
@@ -102,14 +101,14 @@ impl Draw {
 
         let mut draw = self.handle.begin_drawing(&self.thread);
         draw.clear_background(Color::BLACK);
-        draw.draw_texture_pro(&self.screen_texture, ScreenTextureSize, self.screen_size, self.screen_position, 0., Color::WHITE);
+        draw.draw_texture_pro(&self.screen_texture, SCREEN_RECT, self.screen_size, self.screen_position, 0., Color::WHITE);
         draw.draw_fps(0, 0);
     }
 }
 
 
 pub struct PPU {
-    draw: Draw,
+    pub draw: Draw,
     state: PPU_state,
 
     palette_ram: [u8; 1024],
@@ -137,19 +136,21 @@ impl PPU {
         }
     }
 
-    pub fn change_background(&mut self, background: u16) {
-        println!("git, {:x}", background);
-    }
-
-    pub fn read8(&self, addr: u32) -> u8 {
-        match (addr >> 24)&0xF {
-            5 => {
+    pub fn read8(&self, mut addr: u32) -> u8 {
+        match addr {
+            0x5000000 ..= 0x50003FF => {
                 self.palette_ram[(addr&0x3FF) as usize]
             },
-            6 => {
+            0x6000000 ..= 0x601FFFF => {
+                addr &= 0x1FFFF;
+
+                if addr > 0x17FFF {
+                    addr -= 0x8000;
+                }
+                
                 self.vram[(addr&0x17FFF) as usize]
             },
-            7 => {
+            0x7000000 ..= 0x70003FF => {
                 self.obj_attrib[(addr&0x3FF) as usize]
             },
             _ => unreachable!()
@@ -157,16 +158,21 @@ impl PPU {
     }
 
     pub fn read16(&self, mut addr: u32) -> u16 {
-        match (addr >> 24)&0xF {
-            5 => {
+        match addr {
+            0x5000000 ..= 0x50003FF => {
                 addr &= 0x3FF;
                 bus_read_arr!(u16, self.palette_ram, addr as usize)
             },
-            6 => {
-                addr &= 0x17FFF;
+            0x6000000 ..= 0x601FFFF => {
+                addr &= 0x1FFFF;
+
+                if addr > 0x17FFF {
+                    addr -= 0x8000;
+                }
+                
                 bus_read_arr!(u16, self.vram, addr as usize)
             },
-            7 => {
+            0x7000000 ..= 0x70003FF => {
                 addr &= 0x3FF;
                 bus_read_arr!(u16, self.obj_attrib, addr as usize)
             },
@@ -175,16 +181,21 @@ impl PPU {
     }
 
     pub fn read32(&self, mut addr: u32) -> u32 {
-        match (addr >> 24)&0xF {
-            5 => {
+        match addr {
+            0x5000000 ..= 0x50003FF => {
                 addr &= 0x3FF;
                 bus_read_arr!(u32, self.palette_ram, addr as usize)
             },
-            6 => {
-                addr &= 0x17FFF;
+            0x6000000 ..= 0x601FFFF => {
+                addr &= 0x1FFFF;
+
+                if addr > 0x17FFF {
+                    addr -= 0x8000;
+                }
+                
                 bus_read_arr!(u32, self.vram, addr as usize)
             },
-            7 => {
+            0x7000000 ..= 0x70003FF => {
                 addr &= 0x3FF;
                 bus_read_arr!(u32, self.obj_attrib, addr as usize)
             },
@@ -193,16 +204,21 @@ impl PPU {
     }
 
     pub fn write16(&mut self, mut addr: u32, val: u16) {
-        match (addr >> 24)&0xF {
-            5 => {
+        match addr {
+            0x5000000 ..= 0x50003FF => {
                 addr &= 0x3FF;
                 bus_write_arr!(u16, self.palette_ram, addr as usize, val);
             },
-            6 => {
-                addr &= 0x17FFF;
+            0x6000000 ..= 0x601FFFF => {
+                addr &= 0x1FFFF;
+
+                if addr > 0x17FFF {
+                    addr -= 0x8000;
+                }
+
                 bus_write_arr!(u16, self.vram, addr as usize, val);
             },
-            7 => {
+            0x7000000 ..= 0x70003FF => {
                 addr &= 0x3FF;
                 bus_write_arr!(u16, self.obj_attrib, addr as usize, val);
             },
@@ -211,16 +227,21 @@ impl PPU {
     }
 
     pub fn write32(&mut self, mut addr: u32, val: u32) {
-        match (addr >> 24)&0xF {
-            5 => {
+        match addr {
+            0x5000000 ..= 0x50003FF => {
                 addr &= 0x3FF;
                 bus_write_arr!(u32, self.palette_ram, addr as usize, val);
             },
-            6 => {
-                addr &= 0x17FFF;
+            0x6000000 ..= 0x601FFFF => {
+                addr &= 0x1FFFF;
+
+                if addr > 0x17FFF {
+                    addr -= 0x8000;
+                }
+                
                 bus_write_arr!(u32, self.vram, addr as usize, val);
             },
-            7 => {
+            0x7000000 ..= 0x70003FF => {
                 addr &= 0x3FF;
                 bus_write_arr!(u32, self.obj_attrib, addr as usize, val);
             },
@@ -236,7 +257,7 @@ impl PPU {
         u16_to_color(c)
     }
 
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self) -> bool {
         use PPU_state::*;
 
         match &mut self.state {
@@ -262,7 +283,7 @@ impl PPU {
                     *cycles_left -= 1;
                 } else {
                     self.vcount.ly += 1;
-                    if self.vcount.ly == VDRAW_HEIGHT {
+                    if self.vcount.ly >= VDRAW_HEIGHT {
                         self.dispstat.unset(DisplayStatFlag::HBLANK);
                         self.dispstat.set(DisplayStatFlag::VBLANK);
                         self.state = PPU_state::new_vblank();
@@ -282,11 +303,14 @@ impl PPU {
                         self.vcount.ly = 0;
                         self.dispstat.unset(DisplayStatFlag::VBLANK);
                         self.state = PPU_state::new_hdraw();
+                        return true;
                     } else {
                         *cycles_left = SCANLINE_CYCLES;
                     }
                 }
             }
         }
+
+        false
     }
 }

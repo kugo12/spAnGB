@@ -45,7 +45,7 @@ impl CPU {
     }
 
     #[inline]
-    pub fn ARM_EOR(&mut self, bus: &mut Bus, instr: u32) {  // it's just XOR lol
+    pub fn ARM_EOR(&mut self, bus: &mut Bus, instr: u32) {
         let (op1, (op2, carry)) = self.ARM_get_operands(instr);
         let tmp= op1^op2;
         self.register_write(((instr >> 12)&0xF) as usize, tmp, bus);

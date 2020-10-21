@@ -106,6 +106,8 @@ pub struct CPU {
     pub pipeline: [u32; 3],
     pub lut_thumb: [fn(&mut CPU, &mut Bus, u16); 1024],
     pub lut_arm: [fn(&mut CPU, &mut Bus, u32); 4096],
+
+    pub log: bool
 }
 
 impl CPU {
@@ -122,7 +124,9 @@ impl CPU {
             mode: CPU_mode::sys,
             pipeline: [0; 3],
             lut_thumb: [CPU::undefined_opcode; 1024],
-            lut_arm: [CPU::undefined_opcode; 4096]
+            lut_arm: [CPU::undefined_opcode; 4096],
+
+            log: false
         };
 
         cpu.ARM_fill_lut();
@@ -184,6 +188,7 @@ impl CPU {
         }
     }
 
+    #[inline(always)]
     pub fn register_write(&mut self, index: usize, value: u32, bus: &mut Bus) {
         self.register[index] = value;
         if index == 15 {
@@ -200,12 +205,19 @@ impl CPU {
             panic!("{:x}, {:x}", self.register[15] - 8, self.register[15] - 4);
         }
         if self.state == CPU_state::ARM {
-            // println!("ARM Instruction {:08x} at {:x}", self.pipeline[2], self.register[15]-8);
-            // self.print_regs();
+            if self.log {
+                println!("ARM Instruction {:08x} at {:x}", self.pipeline[2], self.register[15]-8);
+                self.print_regs();
+            }
             self.tick_ARM(bus);
         } else {
-            // println!("THUMB Instruction {:04x} at {:x}", self.pipeline[2], self.register[15]-4);
-            // self.print_regs();
+           // if self.log {
+            // if self.register[15] - 4 != 0x8000190 && self.register[15] - 4 != 0x8000194 && self.register[15] - 4 != 0x8000196 {
+                
+            //    println!("THUMB Instruction {:04x} at {:x}", self.pipeline[2], self.register[15]-4);
+            //    self.print_regs();
+            // }
+       //     }
             self.tick_THUMB(bus)
         }
     }
@@ -218,7 +230,7 @@ impl CPU {
         println!("cpsr: {:08x}", self.cpsr);
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn is_condition(&self, cond: u8) -> bool {
         match cond {
             0x0 => self.cpsr&Flag::Z != 0,
@@ -246,7 +258,7 @@ impl CPU {
         self.pipeline = [0; 3];
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn switch_state(&mut self, bus: &mut Bus, state: u32) {
         self.state = CPU_state::from(state);
         self.set_flag(Flag::T, self.state == CPU_state::THUMB);
@@ -256,6 +268,7 @@ impl CPU {
         }
     }
 
+    #[inline(always)]
     pub fn set_flag(&mut self, flag: Flag, val: bool) {
         self.cpsr &= !flag;
         if val {

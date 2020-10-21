@@ -5,7 +5,7 @@ mod core;
 use crate::core::spAnGB;
 
 fn main() {
-    let r = Path::new(&"armwrestler-gba-fixed.gba");
+    let r = Path::new(&"first.gba");
     let b = Path::new(&"normatt.bin");
 
     let mut gba = spAnGB::new();

@@ -1,3 +1,7 @@
+use raylib::RaylibHandle;
+use raylib::consts::KeyboardKey;
+
+
 pub trait MemoryMappedRegister {
     fn read8(&mut self, addr: u32) -> u8;
     fn read16(&mut self, addr: u32) -> u16;
@@ -60,6 +64,19 @@ impl MemoryMappedRegister for InterruptMasterEnable {
 }
 
 
+const KEY_MAPPING: [KeyboardKey; 10] = [
+    KeyboardKey::KEY_Z,  // A
+    KeyboardKey::KEY_X,  // B
+    KeyboardKey::KEY_S,  // Select
+    KeyboardKey::KEY_A,  // Start
+    KeyboardKey::KEY_RIGHT,  // Right
+    KeyboardKey::KEY_LEFT,  // Left
+    KeyboardKey::KEY_UP,  // Up
+    KeyboardKey::KEY_DOWN,  // Down
+    KeyboardKey::KEY_W,  // R
+    KeyboardKey::KEY_Q   // L
+];
+
 pub struct KeyInput {
     value: u16
 }
@@ -68,6 +85,15 @@ impl KeyInput {
     pub fn new() -> Self {
         Self {
             value: 0xFFFF
+        }
+    }
+
+    pub fn update(&mut self, handle: &RaylibHandle) {
+        self.value = 0;
+        for (index, key) in KEY_MAPPING.iter().enumerate() {
+            if handle.is_key_up(*key) {
+                self.value |= 1 << index;
+            }
         }
     }
 }

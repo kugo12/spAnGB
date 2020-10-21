@@ -348,13 +348,13 @@ impl CPU {
 
     pub fn THUMB_LD_PC_SP(&mut self, bus: &mut Bus, instr: u16) {
         let off = ((instr&0xFF) << 2) as u32;
-        let src = if is_bit_set(instr as u32, 11) {
-            self.register[13]
+        let d = ((instr >> 8)&0x7) as usize;
+        
+        if is_bit_set(instr as u32, 11) {
+            self.register[d] = self.register[13]+off;
         } else {
-            self.register[15]
-        };
-
-        self.register[((instr >> 8)&0x7) as usize] = off+src;
+            self.register[d] = (self.register[15]& !2) + off;
+        }
     }
 
     pub fn THUMB_SP_OFF(&mut self, bus: &mut Bus, instr: u16) {
@@ -404,12 +404,12 @@ impl CPU {
     pub fn THUMB_PUSH(&mut self, bus: &mut Bus, instr: u16) {
         let mut sp_update = 0;
         let mut rlist = instr&0xFF;
-        
+
         if is_bit_set(instr as u32, 8) {
             bus.write32(self.register[13]-sp_update, self.register[14]);
             sp_update += 4;
         }
-
+        
         for i in 0..=7 {
             if rlist%2 == 1 {
                 bus.write32(self.register[13]-sp_update, self.register[i]);
@@ -425,19 +425,19 @@ impl CPU {
         let mut sp_update = 0;
         let mut rlist = instr&0xFF;
 
-        if is_bit_set(instr as u32, 8) {
-            self.register[15] = bus.read32(self.register[13]+sp_update);
-            sp_update += 4;
-
-            self.thumb_refill_pipeline(bus);
-        }
-
         for i in 0..=7 {
             if rlist&0x80 != 0 {
                 sp_update += 4;
                 self.register[7-i] = bus.read32(self.register[13] + sp_update);
             }
             rlist <<= 1;
+        }
+
+        if is_bit_set(instr as u32, 8) {
+            sp_update += 4;
+            self.register[15] = bus.read32(self.register[13]+sp_update);
+
+            self.thumb_refill_pipeline(bus);
         }
 
         self.register[13] += sp_update;
@@ -449,13 +449,18 @@ impl CPU {
         let mut rb = ((instr >> 8)&0x7) as usize;
         let mut addr = self.register[rb];
 
-        for i in 0..=7 {
-            if rlist%2 == 1 {
-                bus.write32(addr+update, self.register[i]);
-                update += 4;
-            }
+        if instr&0xFF == 0 {
+            bus.write32(addr, (self.register[15] + 2)& !2);
+            update += 0x40;
+        } else {
+            for i in 0..=7 {
+                if rlist%2 == 1 {
+                    bus.write32(addr+update, self.register[i]);
+                    update += 4;
+                }
 
-            rlist >>= 1;
+                rlist >>= 1;
+            }
         }
 
         self.register[rb] += update;
@@ -467,15 +472,20 @@ impl CPU {
         let mut rb = ((instr >> 8)&0x7) as usize;
         let mut addr = self.register[rb];
 
-        for i in 0..=7 {
-            if rlist%2 == 1 {
-                self.register[i] = bus.read32(addr - update);
-                update += 4;
-            }
+        if instr&0xFF == 0 {
+            self.register_write(15, bus.read32(addr), bus);
+            update += 0x40;
+        } else {
+            for i in 0..=7 {
+                if rlist%2 == 1 {
+                    self.register[i] = bus.read32(addr + update);
+                    update += 4;
+                }
 
-            rlist >>= 1;
+                rlist >>= 1;
+            }
         }
 
-        self.register[rb] -= update;
+        self.register[rb] += update;
     }
 }

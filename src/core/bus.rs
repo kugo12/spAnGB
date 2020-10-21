@@ -21,7 +21,6 @@ macro_rules! get_MMIO_reg {
             0 => &mut $self.ppu.dispcnt as &mut dyn MemoryMappedRegister,
             0x4 => &mut $self.ppu.dispstat,
             0x6 => &mut $self.ppu.vcount,
-            0x8 => &mut $self.dummy_reg,
             0x130 => &mut $self.key_input,
             0x208 => &mut $self.ime,
             _ => panic!("Access to u16 unhandled MMIO reg at: {:x}", $addr)
@@ -88,7 +87,9 @@ impl Bus {
     }
 
     pub fn tick(&mut self) {
-        self.ppu.tick();
+        if self.ppu.tick() {
+            self.key_input.update(&self.ppu.draw.handle);
+        }
     }
 
     pub fn read8(&mut self, mut addr: u32) -> u8 {

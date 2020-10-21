@@ -100,15 +100,13 @@ pub enum DisplayStatFlag {
 pub struct DisplayStat {
     value: u16,
     lyc: u16,
-    fr: u8
 }
 
 impl DisplayStat {
     pub fn new() -> Self {
         Self {
-            value: 0xFFFF,
+            value: 0x0,
             lyc: 0,
-            fr: 100
         }
     }
 
@@ -128,7 +126,6 @@ impl DisplayStat {
 
 impl MemoryMappedRegister for DisplayStat {
     fn read8(&mut self, addr: u32) -> u8 {
-        println!("stat r8");
         if addr&0x1 != 0 {
             self.lyc as u8
         } else {
