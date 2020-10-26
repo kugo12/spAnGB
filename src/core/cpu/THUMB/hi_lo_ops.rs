@@ -32,14 +32,7 @@ impl CPU {
         );
         // let (rd, rs, d) = self.THUMB_HILO_OPERANDS(instr);
 
-        let (tmp, carry) = rd.overflowing_add(rs);
-
-        self.set_flag(Flag::N, tmp&0x80000000 != 0);
-        self.set_flag(Flag::Z, tmp == 0);
-        self.set_flag(Flag::C, carry);
-        self.set_flag(Flag::V, (rd as i32).overflowing_add(rs as i32).1);
-
-        self.register_write(d, tmp, bus);
+        self.register_write(d, rd.wrapping_add(rs), bus);
     }
 
     pub fn THUMB_HILO_MOV(&mut self, bus: &mut Bus, instr: u16) {
@@ -55,7 +48,7 @@ impl CPU {
 
         self.set_flag(Flag::N, tmp&0x80000000 != 0);
         self.set_flag(Flag::Z, tmp == 0);
-        self.set_flag(Flag::C, carry);
+        self.set_flag(Flag::C, !carry);
         self.set_flag(Flag::V, (rd as i32).overflowing_sub(rs as i32).1)
     }
 

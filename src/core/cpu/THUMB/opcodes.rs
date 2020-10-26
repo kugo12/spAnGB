@@ -171,6 +171,7 @@ impl CPU {
         self.register[(instr&0x7) as usize] = tmp.0;
         self.set_flag(Flag::C, tmp.1);
         self.set_flag(Flag::Z, tmp.0 == 0);
+        self.set_flag(Flag::N, tmp.0&0x80000000 != 0)
     }
 
     pub fn THUMB_ADD_SUB(&mut self, bus: &mut Bus, instr: u16) {
@@ -358,7 +359,7 @@ impl CPU {
     }
 
     pub fn THUMB_SP_OFF(&mut self, bus: &mut Bus, instr: u16) {
-        let off = (instr&0x7F) as u32;
+        let off = ((instr&0x7F) as u32) << 2;
 
         if is_bit_set(instr as u32, 7) {  // off neg
             self.register[13] -= off;
@@ -396,7 +397,9 @@ impl CPU {
     }
 
     pub fn THUMB_SWI(&mut self, bus: &mut Bus, instr: u16) {
+        println!("THUMB SWI {:x}", instr);
         self.set_mode(CPU_mode::svc);
+        self.register[14] = self.register[15] - 2;
         self.register[15] = 0x8;
         self.switch_state(bus, 0);
     }
@@ -406,16 +409,16 @@ impl CPU {
         let mut rlist = instr&0xFF;
 
         if is_bit_set(instr as u32, 8) {
-            bus.write32(self.register[13]-sp_update, self.register[14]);
             sp_update += 4;
+            bus.write32(self.register[13]-sp_update, self.register[14]);
         }
         
         for i in 0..=7 {
-            if rlist%2 == 1 {
-                bus.write32(self.register[13]-sp_update, self.register[i]);
+            if rlist&0x80 != 0 {
                 sp_update += 4;
+                bus.write32(self.register[13]-sp_update, self.register[7-i]);
             }
-            rlist >>= 1;
+            rlist <<= 1;
         }
 
         self.register[13] -= sp_update;
@@ -426,16 +429,16 @@ impl CPU {
         let mut rlist = instr&0xFF;
 
         for i in 0..=7 {
-            if rlist&0x80 != 0 {
+            if rlist&0x1 != 0 {
+                self.register[i] = bus.read32(self.register[13] + sp_update);
                 sp_update += 4;
-                self.register[7-i] = bus.read32(self.register[13] + sp_update);
             }
-            rlist <<= 1;
+            rlist >>= 1;
         }
 
         if is_bit_set(instr as u32, 8) {
-            sp_update += 4;
             self.register[15] = bus.read32(self.register[13]+sp_update);
+            sp_update += 4;
 
             self.thumb_refill_pipeline(bus);
         }
@@ -446,8 +449,11 @@ impl CPU {
     pub fn THUMB_STMIA(&mut self, bus: &mut Bus, instr: u16) {
         let mut update = 0;
         let mut rlist = instr&0xFF;
-        let mut rb = ((instr >> 8)&0x7) as usize;
-        let mut addr = self.register[rb];
+        let rb = ((instr >> 8)&0x7) as usize;
+        let addr = self.register[rb];
+        let mut first = true;
+        let mut rb_first = false;
+        let mut rb_in_rlist: (u32, bool) = (0, false);
 
         if instr&0xFF == 0 {
             bus.write32(addr, (self.register[15] + 2)& !2);
@@ -455,6 +461,15 @@ impl CPU {
         } else {
             for i in 0..=7 {
                 if rlist%2 == 1 {
+                    if i == rb {
+                        if first {
+                            rb_first = true;
+                        }
+                        rb_in_rlist = (addr+update, true);
+                    } else {
+                        first = false;
+                    }
+                    
                     bus.write32(addr+update, self.register[i]);
                     update += 4;
                 }
@@ -464,6 +479,9 @@ impl CPU {
         }
 
         self.register[rb] += update;
+        if !rb_first && rb_in_rlist.1 {
+            bus.write32(rb_in_rlist.0, self.register[rb]);
+        }
     }
     
     pub fn THUMB_LDMIA(&mut self, bus: &mut Bus, instr: u16) {

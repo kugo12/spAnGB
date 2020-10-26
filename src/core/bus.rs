@@ -1,38 +1,26 @@
 use std::io::prelude::*;
 use std::fs::File;
 use std::path::Path;
-
+use std::any::type_name;
 
 use crate::core::{PPU, Cartridge, io, io::MemoryMappedRegister};
 
 
 macro_rules! get_MMIO_reg {
-    (u8, $self:expr, $addr:expr) => {
+    ($t:ty, $self:expr, $addr:expr) => {
         match $addr {
             0 => &mut $self.ppu.dispcnt as &mut dyn MemoryMappedRegister,
             0x4 => &mut $self.ppu.dispstat,
+            0x8 => &mut $self.ppu.bgcnt[0],
+            0xA => &mut $self.ppu.bgcnt[1],
+            0xC => &mut $self.ppu.bgcnt[2],
+            0xE => &mut $self.ppu.bgcnt[3],
             0x130 => &mut $self.key_input,
+            0x200 => &mut $self.ie,
+            0x202 => &mut $self.ir,
             0x208 => &mut $self.ime,
-            _ => panic!("Access to u8 unhandled MMIO reg at: {:x}", $addr)
-        }
-    };
-    (u16, $self:expr, $addr:expr) => {
-        match $addr {
-            0 => &mut $self.ppu.dispcnt as &mut dyn MemoryMappedRegister,
-            0x4 => &mut $self.ppu.dispstat,
-            0x6 => &mut $self.ppu.vcount,
-            0x130 => &mut $self.key_input,
-            0x208 => &mut $self.ime,
-            _ => panic!("Access to u16 unhandled MMIO reg at: {:x}", $addr)
-        }
-    };
-    (u32, $self:expr, $addr:expr) => {
-        match $addr {
-            0 => &mut $self.ppu.dispcnt as &mut dyn MemoryMappedRegister,
-            0x4 => &mut $self.ppu.dispstat,
-            0x130 => &mut $self.key_input,
-            0x208 => &mut $self.ime,
-            _ => panic!("Access to u32 unhandled MMIO reg at: {:x}", $addr)
+            _ => &mut $self.dummy_reg,
+            _ => panic!("Access to unhandled MMIO reg at: {:x} type: {:?}", $addr, type_name::<$t>())
         }
     };
 }
@@ -47,7 +35,9 @@ pub struct Bus {
 
     dummy_reg: io::DummyRegister,
     ime: io::InterruptMasterEnable,
-    key_input: io::KeyInput
+    ie: io::InterruptEnable,
+    ir: io::InterruptRequest,
+    key_input: io::KeyInput,
 }
 
 impl Bus {
@@ -62,6 +52,8 @@ impl Bus {
 
             dummy_reg: io::DummyRegister {},
             ime: io::InterruptMasterEnable::new(),
+            ie: io::InterruptEnable::new(),
+            ir: io::InterruptRequest::new(),
             key_input: io::KeyInput::new()
         }
     }

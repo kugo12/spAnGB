@@ -189,6 +189,7 @@ impl CPU {
     #[inline]
     pub fn ARM_SWI(&mut self, bus: &mut Bus, instr: u32) {
         self.set_mode(CPU_mode::svc);
+        self.register[14] = self.register[15] - 4;
         self.register[15] = 0x08;
         self.arm_refill_pipeline(bus);
         println!("SWI {:x}", instr);

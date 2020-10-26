@@ -40,8 +40,8 @@ pub struct DisplayControl {
 impl DisplayControl {
     pub fn new() -> Self {
         Self {
-            bg_mode: 0,
-            value: 0
+            bg_mode: 3,
+            value: 3
         }
     }
 
@@ -70,10 +70,11 @@ impl MemoryMappedRegister for DisplayControl {
 
     fn write16(&mut self, addr: u32, val: u16) {
         self.value = val;
-        self.bg_mode = val&0x3;
+        self.bg_mode = val&0x7;
+        println!("{} {:x}", self.bg_mode, self.value);
     }
 
-    fn write32(&mut self, addr: u32, val: u32) {}
+    fn write32(&mut self, addr: u32, val: u32) { self.write16(addr, val as u16) }
     fn read32(&mut self, addr: u32) -> u32 { 0 }
 }
 
@@ -191,4 +192,93 @@ impl MemoryMappedRegister for VCount {
     fn write16(&mut self, addr: u32, val: u16) {}
     fn read32(&mut self, addr: u32) -> u32 { self.ly as u32 }
     fn write32(&mut self, addr: u32, val: u32) {}
+}
+
+
+
+// Bit   Expl.
+// 0-1   BG Priority           (0-3, 0=Highest)
+// 2-3   Character Base Block  (0-3, in units of 16 KBytes) (=BG Tile Data)
+// 4-5   Not used (must be zero) (except in NDS mode: MSBs of char base)
+// 6     Mosaic                (0=Disable, 1=Enable)
+// 7     Colors/Palettes       (0=16/16, 1=256/1)
+// 8-12  Screen Base Block     (0-31, in units of 2 KBytes) (=BG Map Data)
+// 13    BG0/BG1: Not used (except in NDS mode: Ext Palette Slot for BG0/BG1)
+// 13    BG2/BG3: Display Area Overflow (0=Transparent, 1=Wraparound)
+// 14-15 Screen Size (0-3)
+
+#[derive(Copy, Clone)]
+pub struct BackgroundControl {
+    value: u16,
+
+    pub priority: u16,
+    pub tile_data: u16,
+    pub mosaic: bool,
+    pub colors: bool,
+    pub map_data: u16,
+    pub display_area_overflow: bool,
+    pub size: u16,
+
+    pub tile_data_offset: usize,
+    pub tile_map_offset: usize,
+}
+
+impl BackgroundControl {
+    pub fn new() -> Self { 
+        Self {
+            value: 0,
+
+            priority: 0,
+            tile_data: 0,
+            mosaic: false,
+            colors: false,
+            map_data: 0,
+            display_area_overflow: false,
+            size: 0,
+            
+            tile_data_offset: 0,
+            tile_map_offset: 0
+        }
+    }
+}
+
+impl MemoryMappedRegister for BackgroundControl {
+    fn read8(&mut self, addr: u32) -> u8 {
+        if addr&0x1 != 0 {
+            (self.value >> 8) as u8
+        } else {
+            self.value as u8
+        }
+    }
+
+    fn read16(&mut self, addr: u32) -> u16 {
+        self.value
+    }
+
+    fn write8(&mut self, addr: u32, val: u8) {
+        todo!("Implement BackgroundControl write8");
+    }
+
+    fn write16(&mut self, addr: u32, val: u16) {
+        self.value = val;
+
+        self.priority = val&0x3;
+        self.tile_data = (val >> 2)&0x3;
+        self.mosaic = val&0x40 != 0;
+        self.colors = val&0x80 != 0;
+        self.map_data = (val >> 8)&0x1F;
+        self.display_area_overflow = val&0x2000 != 0;
+        self.size = (val >> 14)&0x3;
+
+        self.tile_map_offset = self.map_data as usize*0x800; // 2kB steps
+        self.tile_data_offset = self.tile_data as usize*0x4000; // 16kB steps
+    }
+
+    fn read32(&mut self, addr: u32) -> u32 {
+        self.value as u32
+    }
+
+    fn write32(&mut self, addr: u32, val: u32) {
+        self.write16(addr, val as u16);
+    }
 }

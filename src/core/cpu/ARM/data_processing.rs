@@ -218,13 +218,26 @@ impl CPU {
     #[inline]
     pub fn ARM_MOV(&mut self, bus: &mut Bus, instr: u32) {
         let (_, (op2, carry)) = self.ARM_get_operands(instr);
-        self.register_write(((instr >> 12)&0xF) as usize, op2, bus);
+        let d = ((instr >> 12)&0xF) as usize;
 
         if is_bit_set(instr, 20) {
             self.set_flag(Flag::C, carry);
             self.set_flag(Flag::Z, op2 == 0);
             self.set_flag(Flag::N, op2&0x80000000 != 0);
+
+            if d == 15 {
+                self.register[15] = op2;
+                match self.mode {
+                    CPU_mode::sys | CPU_mode::usr => {},
+                    CPU_mode::fiq => self.set_mode(CPU_mode::from(self.fiq_spsr)),
+                    _ => self.set_mode(CPU_mode::from(self.bank_reg[self.mode as usize][2]))
+                }
+                self.switch_state(bus, ((self.cpsr&Flag::T) != 0) as u32);
+                return
+            }
         }
+
+        self.register_write(d, op2, bus);
     }
 
     #[inline]

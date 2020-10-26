@@ -139,6 +139,8 @@ impl CPU {
         self.register[0] = 0x08000000;
         self.register[1] = 0xEA;
         self.register[13] = 0x3007F00;
+        self.bank_reg[CPU_mode::svc as usize][0] = 0x3007FE0;
+        self.bank_reg[CPU_mode::irq as usize][0] = 0x3007FA0;
         self.cpsr = 0x6000001F;
 
         self.register[15] = 0x08000000;
@@ -155,13 +157,16 @@ impl CPU {
         if mode != self.mode {
             match self.mode {
                 usr | sys => {
-                    self.reg.copy_from_slice(&self.register[8..15]);
+                    self.reg.copy_from_slice(&self.register[8..=14]);
                 },
                 fiq => {
-                    self.fiq_reg.copy_from_slice(&self.register[8..15]);
+                    self.fiq_reg.copy_from_slice(&self.register[8..=14]);
                     self.cpsr = self.fiq_spsr;
                 },
                 _ => {
+                    for i in 8 ..= 12 {
+                        self.reg[i-8] = self.register[i];
+                    }
                     self.bank_reg[self.mode as usize][0] = self.register[13];
                     self.bank_reg[self.mode as usize][1] = self.register[14];
                     self.cpsr = self.bank_reg[self.mode as usize][2];
@@ -170,13 +175,22 @@ impl CPU {
 
             match mode {
                 usr | sys => {
-                    self.register[8..15].swap_with_slice(&mut self.reg);
+                    self.register[8..=14].swap_with_slice(&mut self.reg);
+                    // for i in 8 ..= 14 {
+                    //     self.register[i] = self.reg[i-8];
+                    // }
                 },
                 fiq => {
-                    self.register[8..15].swap_with_slice(&mut self.fiq_reg);
+                    self.register[8..=14].swap_with_slice(&mut self.fiq_reg);
+                    // for i in 8 ..= 14 {
+                    //     self.register[i] = self.reg[i-8];
+                    // }
                     self.fiq_spsr = self.cpsr;
                 },
                 _ => {
+                    for i in 8 ..= 12 {
+                        self.register[i] = self.reg[i-8];
+                    }
                     self.register[13] = self.bank_reg[mode as usize][0];
                     self.register[14] = self.bank_reg[mode as usize][1];
                     self.bank_reg[mode as usize][2] = self.cpsr;
@@ -184,7 +198,7 @@ impl CPU {
             }
 
             self.cpsr = (self.cpsr & 0xFFFFFFE0) | CPU_MODE[mode as usize];
-            self.mode = mode;
+            self.mode = CPU_mode::from(self.cpsr);
         }
     }
 
@@ -211,13 +225,10 @@ impl CPU {
             }
             self.tick_ARM(bus);
         } else {
-           // if self.log {
-            // if self.register[15] - 4 != 0x8000190 && self.register[15] - 4 != 0x8000194 && self.register[15] - 4 != 0x8000196 {
-                
-            //    println!("THUMB Instruction {:04x} at {:x}", self.pipeline[2], self.register[15]-4);
-            //    self.print_regs();
-            // }
-       //     }
+           if self.log {
+               println!("THUMB Instruction {:04x} at {:x}", self.pipeline[2], self.register[15]-4);
+               self.print_regs();
+           }
             self.tick_THUMB(bus)
         }
     }

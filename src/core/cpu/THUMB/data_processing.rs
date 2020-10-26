@@ -33,12 +33,12 @@ impl CPU {
 
     pub fn THUMB_MUL(&mut self, bus: &mut Bus, instr: u16) {
         let rs = self.register[((instr >> 3)&0x7) as usize];
-        let rd = &mut self.register[(instr&0x7) as usize];
-        *rd = *rd*rs;
-        let rd = *rd;
+        let d = (instr&0x7) as usize;
+        let tmp = self.register[d].wrapping_mul(rs);
+        self.register[d] = tmp;
 
-        self.set_flag(Flag::Z, rd == 0);
-        self.set_flag(Flag::N, rd&0x80000000 != 0);
+        self.set_flag(Flag::Z, tmp == 0);
+        self.set_flag(Flag::N, tmp&0x80000000 != 0);
     }
 
     pub fn THUMB_BIC(&mut self, bus: &mut Bus, instr: u16) {
@@ -176,6 +176,8 @@ impl CPU {
 
         self.set_flag(Flag::Z, rs == 0);
         self.set_flag(Flag::N, rs as u32&0x80000000 != 0);
+        self.set_flag(Flag::V, false);
+        self.set_flag(Flag::C, true);
     }
 
     pub fn THUMB_MVN(&mut self, bus: &mut Bus, instr: u16) {

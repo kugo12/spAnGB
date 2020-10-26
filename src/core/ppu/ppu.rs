@@ -19,7 +19,26 @@ const SCANLINE_CYCLES: u32 = HDRAW_CYCLES + HBLANK_CYCLES;
 const VBLANK_HEIGHT: u16 = 68;
 const VDRAW_HEIGHT: u16 = 160;
 
+struct TextTile {
+    tile: usize,
+    horizontal_flip: bool,
+    vertical_flip: bool,
+    palette: u8
+}
 
+impl TextTile {
+    #[inline(always)]
+    pub fn new(tile_data: u16) -> Self {
+        Self {
+            tile: tile_data as usize&0x3FF,
+            horizontal_flip: tile_data&0x400 != 0,
+            vertical_flip: tile_data&0x800 != 0,
+            palette: ((tile_data >> 12)&0xF) as u8
+        }
+    }
+}
+
+#[inline(always)]
 fn u16_to_color(c: u16) -> [u8; 3] {
     [
         (c as u8&0x1F) << 3,
@@ -117,7 +136,8 @@ pub struct PPU {
 
     pub dispstat: DisplayStat,
     pub dispcnt: DisplayControl,
-    pub vcount: VCount
+    pub vcount: VCount,
+    pub bgcnt: [BackgroundControl; 4]
 }
 
 impl PPU {
@@ -132,16 +152,17 @@ impl PPU {
 
             dispstat: DisplayStat::new(),
             dispcnt: DisplayControl::new(),
-            vcount: VCount::new()
+            vcount: VCount::new(),
+            bgcnt: [BackgroundControl::new(); 4]
         }
     }
 
     pub fn read8(&self, mut addr: u32) -> u8 {
         match addr {
-            0x5000000 ..= 0x50003FF => {
+            0x5000000 ..= 0x5FFFFFF => {
                 self.palette_ram[(addr&0x3FF) as usize]
             },
-            0x6000000 ..= 0x601FFFF => {
+            0x6000000 ..= 0x6FFFFFF => {
                 addr &= 0x1FFFF;
 
                 if addr > 0x17FFF {
@@ -150,7 +171,7 @@ impl PPU {
                 
                 self.vram[(addr&0x17FFF) as usize]
             },
-            0x7000000 ..= 0x70003FF => {
+            0x7000000 ..= 0x7FFFFFF => {
                 self.obj_attrib[(addr&0x3FF) as usize]
             },
             _ => unreachable!()
@@ -159,11 +180,11 @@ impl PPU {
 
     pub fn read16(&self, mut addr: u32) -> u16 {
         match addr {
-            0x5000000 ..= 0x50003FF => {
+            0x5000000 ..= 0x5FFFFFF => {
                 addr &= 0x3FF;
                 bus_read_arr!(u16, self.palette_ram, addr as usize)
             },
-            0x6000000 ..= 0x601FFFF => {
+            0x6000000 ..= 0x6FFFFFF => {
                 addr &= 0x1FFFF;
 
                 if addr > 0x17FFF {
@@ -172,7 +193,7 @@ impl PPU {
                 
                 bus_read_arr!(u16, self.vram, addr as usize)
             },
-            0x7000000 ..= 0x70003FF => {
+            0x7000000 ..= 0x7FFFFFF => {
                 addr &= 0x3FF;
                 bus_read_arr!(u16, self.obj_attrib, addr as usize)
             },
@@ -182,11 +203,11 @@ impl PPU {
 
     pub fn read32(&self, mut addr: u32) -> u32 {
         match addr {
-            0x5000000 ..= 0x50003FF => {
+            0x5000000 ..= 0x5FFFFFF => {
                 addr &= 0x3FF;
                 bus_read_arr!(u32, self.palette_ram, addr as usize)
             },
-            0x6000000 ..= 0x601FFFF => {
+            0x6000000 ..= 0x6FFFFFF => {
                 addr &= 0x1FFFF;
 
                 if addr > 0x17FFF {
@@ -195,7 +216,7 @@ impl PPU {
                 
                 bus_read_arr!(u32, self.vram, addr as usize)
             },
-            0x7000000 ..= 0x70003FF => {
+            0x7000000 ..= 0x7FFFFFF => {
                 addr &= 0x3FF;
                 bus_read_arr!(u32, self.obj_attrib, addr as usize)
             },
@@ -205,11 +226,11 @@ impl PPU {
 
     pub fn write16(&mut self, mut addr: u32, val: u16) {
         match addr {
-            0x5000000 ..= 0x50003FF => {
+            0x5000000 ..= 0x5FFFFFF => {
                 addr &= 0x3FF;
                 bus_write_arr!(u16, self.palette_ram, addr as usize, val);
             },
-            0x6000000 ..= 0x601FFFF => {
+            0x6000000 ..= 0x6FFFFFF => {
                 addr &= 0x1FFFF;
 
                 if addr > 0x17FFF {
@@ -218,7 +239,7 @@ impl PPU {
 
                 bus_write_arr!(u16, self.vram, addr as usize, val);
             },
-            0x7000000 ..= 0x70003FF => {
+            0x7000000 ..= 0x7FFFFFF => {
                 addr &= 0x3FF;
                 bus_write_arr!(u16, self.obj_attrib, addr as usize, val);
             },
@@ -228,11 +249,11 @@ impl PPU {
 
     pub fn write32(&mut self, mut addr: u32, val: u32) {
         match addr {
-            0x5000000 ..= 0x50003FF => {
+            0x5000000 ..= 0x5FFFFFF => {
                 addr &= 0x3FF;
                 bus_write_arr!(u32, self.palette_ram, addr as usize, val);
             },
-            0x6000000 ..= 0x601FFFF => {
+            0x6000000 ..= 0x6FFFFFF => {
                 addr &= 0x1FFFF;
 
                 if addr > 0x17FFF {
@@ -241,7 +262,7 @@ impl PPU {
                 
                 bus_write_arr!(u32, self.vram, addr as usize, val);
             },
-            0x7000000 ..= 0x70003FF => {
+            0x7000000 ..= 0x7FFFFFF => {
                 addr &= 0x3FF;
                 bus_write_arr!(u32, self.obj_attrib, addr as usize, val);
             },
@@ -249,12 +270,92 @@ impl PPU {
         }
     }
 
+    #[inline(always)]
     fn get_bg_color_from_palette(&self, color: u8) -> [u8; 3] {
         let c = {
             let index = color as usize*2;
             self.palette_ram[index] as u16 | ((self.palette_ram[index + 1] as u16) << 8)
         };
         u16_to_color(c)
+    }
+
+    fn render_bg_mode4(&mut self) {
+        let pixel_off = self.vcount.ly as usize*240;
+
+        for x in pixel_off .. pixel_off+240 {
+            let c = self.get_bg_color_from_palette(self.vram[x as usize]);
+            let index = x*3;
+            self.draw.buffer[index] = c[0];
+            self.draw.buffer[index+1] = c[1];
+            self.draw.buffer[index+2] = c[2];
+        }
+    }
+
+    fn render_bg_mode3(&mut self) {
+        let pixel_off = self.vcount.ly as usize*480; // 240 * 2 cause 2 bytes
+
+        for x in (pixel_off .. pixel_off + 480).step_by(2) {
+            let color = u16_to_color(self.vram[x] as u16 | ((self.vram[x+1] as u16) << 8));
+
+            let index = (x/2)*3;
+            self.draw.buffer[index] = color[0];
+            self.draw.buffer[index+1] = color[1];
+            self.draw.buffer[index+2] = color[2];
+        }
+    }
+
+    fn render_bg(&mut self, bg: usize) {
+        let bg = self.bgcnt[bg];
+        let mut tilemap_off = (self.vcount.ly as usize/8)*64 + bg.tile_map_offset;
+        let y_tile_off = self.vcount.ly as usize%8;
+
+        let mut buffer_off = self.vcount.ly as usize*240*3;
+        for i in 0 .. 30 {
+            let tile_data = TextTile::new(bus_read_arr!(u16, self.vram, tilemap_off));
+
+            if bg.colors { // 256
+                let tile_off = tile_data.tile*64 + bg.tile_data_offset + y_tile_off*8;
+
+                for j in 0 .. 8 {
+                    let c = self.get_bg_color_from_palette(self.vram[tile_off+j]);
+                    self.draw.buffer[buffer_off] = c[0];
+                    self.draw.buffer[buffer_off + 1] = c[1];
+                    self.draw.buffer[buffer_off + 2] = c[2];
+                    buffer_off += 3;
+                }
+
+            } else { // 16/16
+                let palette_off = tile_data.palette*16;
+                let tile_off = tile_data.tile*32 + bg.tile_data_offset + y_tile_off*4;
+
+                for j in 0 .. 4 {
+                    let pixels = {
+                        let data = self.vram[tile_off + j];
+                        ((data&0xF) + palette_off, (data >> 4) + palette_off)
+                    };
+
+                    let c = self.get_bg_color_from_palette(pixels.0);
+                    self.draw.buffer[buffer_off] = c[0];
+                    self.draw.buffer[buffer_off + 1] = c[1];
+                    self.draw.buffer[buffer_off + 2] = c[2];
+
+                    let c = self.get_bg_color_from_palette(pixels.1);
+                    self.draw.buffer[buffer_off + 3] = c[0];
+                    self.draw.buffer[buffer_off + 4] = c[1];
+                    self.draw.buffer[buffer_off + 5] = c[2];
+
+                    buffer_off += 6;
+                }
+            }
+
+            tilemap_off += 2;
+        }
+    }
+
+    fn render_bg_mode0(&mut self) {
+        self.render_bg(0);
+        // self.render_bg(1);
+        // self.render_bg(2);
     }
 
     pub fn tick(&mut self) -> bool {
@@ -265,15 +366,12 @@ impl PPU {
                 if *cycles_left > 0 {
                     *cycles_left -= 1;
                 } else {
-                    let pixel_off = self.vcount.ly as usize*240;
-                    for x in pixel_off .. pixel_off+240 {
-                        let c = self.get_bg_color_from_palette(self.vram[x as usize]);
-                        let index = x*3;
-                        self.draw.buffer[index] = c[0];
-                        self.draw.buffer[index+1] = c[1];
-                        self.draw.buffer[index+2] = c[2];
+                    match self.dispcnt.bg_mode {
+                        0 => self.render_bg_mode0(),
+                        3 => self.render_bg_mode3(),
+                        4 => self.render_bg_mode4(),
+                        _ => self.render_bg_mode3() // println!("Unsupported bg mode: {}", self.dispcnt.bg_mode)
                     }
-
                     self.dispstat.set(DisplayStatFlag::HBLANK);
                     self.state = PPU_state::new_hblank();
                 }

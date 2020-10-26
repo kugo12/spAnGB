@@ -63,6 +63,100 @@ impl MemoryMappedRegister for InterruptMasterEnable {
     }
 }
 
+#[repr(u16)]
+pub enum Interrupt {
+    VBlank = 0x1,
+    HBlank = 0x2,
+    VCount = 0x4,
+    Timer0 = 0x8,
+    Timer1 = 0x10,
+    Timer2 = 0x20,
+    Timer3 = 0x40,
+    Serial = 0x80,
+    DMA0 = 0x100,
+    DMA1 = 0x200,
+    DMA2 = 0x400,
+    DMA3 = 0x800,
+    Keypad = 0x1000,
+    GamePak = 0x2000
+}
+
+pub struct InterruptEnable {
+    pub value: u16
+}
+
+impl InterruptEnable {
+    pub fn new() -> Self {
+        Self {
+            value: 0
+        }
+    }
+}
+
+impl MemoryMappedRegister for InterruptEnable {
+    fn read8(&mut self, addr: u32) -> u8 {
+        self.value as u8
+    }
+
+    fn read16(&mut self, addr: u32) -> u16 {
+        self.value
+    }
+
+    fn read32(&mut self, addr: u32) -> u32 {
+        self.value as u32
+    }
+
+    fn write8(&mut self, addr: u32, val: u8) {
+        todo!()
+    }
+
+    fn write16(&mut self, addr: u32, val: u16) {
+        self.value = val;
+    }
+
+    fn write32(&mut self, addr: u32, val: u32) {
+        self.value = val as u16;
+    }
+}
+
+pub struct InterruptRequest {
+    pub value: u16
+}
+
+impl InterruptRequest {
+    pub fn new() -> Self {
+        Self {
+            value: 0
+        }
+    }
+}
+
+impl MemoryMappedRegister for InterruptRequest {
+    fn read8(&mut self, addr: u32) -> u8 {
+        self.value as u8
+    }
+
+    fn read16(&mut self, addr: u32) -> u16 {
+        self.value
+    }
+
+    fn read32(&mut self, addr: u32) -> u32 {
+        self.value as u32
+    }
+
+    fn write8(&mut self, addr: u32, val: u8) {
+        todo!()
+    }
+
+    fn write16(&mut self, addr: u32, val: u16) {
+        self.value = val;
+    }
+
+    fn write32(&mut self, addr: u32, val: u32) {
+        self.value = val as u16;
+    }
+}
+
 
 const KEY_MAPPING: [KeyboardKey; 10] = [
     KeyboardKey::KEY_Z,  // A
