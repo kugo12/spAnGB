@@ -8,7 +8,6 @@ import spAnGB.memory.Bus
 import spAnGB.utils.hex
 import spAnGB.utils.swapWith
 
-//typealias CPUInstruction = CPU.(op: Int) -> Unit
 
 fun undefinedThumbInstruction(op: Int) = ThumbInstruction(
     { "Undefined THUMB ${it.hex}" },
@@ -27,6 +26,8 @@ class CPU(
     value class Registers(val content: IntArray = IntArray(16)) {
         inline operator fun get(index: Int): Int = content[index]
     }
+
+    val mmio = bus.mmio
 
     val registers = Registers()
     val registerBanks = Array(4) { IntArray(3) }
@@ -97,18 +98,16 @@ class CPU(
         0xC -> !this[CPUFlag.Z] && (this[CPUFlag.N] == this[CPUFlag.V])
         0xD -> this[CPUFlag.Z] || (this[CPUFlag.N] != this[CPUFlag.V])
         0xE -> true
-        0xF -> true //panic!("Condition 0xF is reserved"),
+        0xF -> false
         else -> throw IllegalStateException("Undefined condition: ${op.hex}")
     }
 
     @Suppress("ReplaceGetOrSet")
     fun tick() {
-        // handle_irq()
-        val op = pipeline.head
+        handlePendingInterrupts()
 
+        val op = pipeline.head
         if (op == 0) TODO()
-//        print(op.hex)
-//        dump_registers()
 
         when (state) {
             CPUState.ARM ->
@@ -195,6 +194,26 @@ class CPU(
 
             cpsr = (cpsr and 0xFFFFFFE0u.toInt()) or value.mask
             mode = value
+        }
+    }
+
+    fun handlePendingInterrupts() {
+        if (!get(CPUFlag.I) && mmio.ime.enabled) {
+            val pending = (mmio.ir.value and mmio.ie.value) and 0xFFFF
+
+            if (pending != 0) {
+
+                val link = pc - if (state == CPUState.ARM) 4 else 2
+                val cpsrCopy = cpsr
+
+                setCPUMode(CPUMode.Interrupt)
+                lr = link
+                pc = 0x18
+                spsr = cpsr
+                this[CPUFlag.I] = true
+                changeState(0)
+                pipeline.armStep(this)
+            }
         }
     }
 }

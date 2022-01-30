@@ -34,7 +34,8 @@ class DisplayStat: Memory {
     }
 
     override fun write16(address: Int, value: Short) {
-//        TODO("Not yet implemented")
+        flags = value.toInt() and 0xFF
+        lyc = value.toUShort().toInt().ushr(8).and(0xFF)
     }
 
     override fun write32(address: Int, value: Int) {

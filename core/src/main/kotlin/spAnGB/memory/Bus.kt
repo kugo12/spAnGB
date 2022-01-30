@@ -4,18 +4,19 @@ import spAnGB.memory.mmio.MMIO
 import spAnGB.ppu.PPU
 import spAnGB.utils.KiB
 import spAnGB.utils.hex
+import java.nio.ByteBuffer
 
 class Bus(
-    val ppu: PPU,
+    framebuffer: ByteBuffer,
     val bios: Bios = Bios("bios.bin"),
-//    val cartridge: Cartridge = Cartridge("armwrestler-gba-fixed.gba"),
-    val cartridge: Cartridge = Cartridge("suite.gba"),
-//    val cartridge: Cartridge = Cartridge("m3_demo.gba"),
-//    val cartridge: Cartridge = Cartridge("FuzzARM.gba"),
+//    val cartridge: Cartridge = Cartridge("suite.gba"),
+    val cartridge: Cartridge = Cartridge("shades.gba"),
 ): Memory {
     val wram = RAM(256*KiB)
     val iwram = RAM(32*KiB)
     val mmio = MMIO(this)
+
+    val ppu = PPU(framebuffer, mmio)
 
     val memoryMapping: Array<Memory> = arrayOf(
         bios,         // 0 - BIOS

@@ -9,9 +9,7 @@ import java.nio.ByteBuffer
 class spAnGB(
     framebuffer: ByteBuffer
 ) {
-    val bus = Bus(
-        ppu = PPU(framebuffer)
-    )
+    val bus = Bus(framebuffer)
     val cpu = CPU(bus)
 
     fun tick() {
