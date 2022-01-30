@@ -159,11 +159,12 @@ class PPU(
 
     private fun checkVCounter() {
         val vc = vcount.ly == displayStat.lyc
-        displayStat[DisplayStatFlag.VCOUNTER] = vc
 
-        if (vc && displayStat[DisplayStatFlag.VCOUNTER_IRQ]) {
+        if (vc && displayStat[DisplayStatFlag.VCOUNTER_IRQ] && !displayStat[DisplayStatFlag.VCOUNTER]) {
             mmio.ir[Interrupt.VCount] = true
         }
+
+        displayStat[DisplayStatFlag.VCOUNTER] = vc
     }
 
     fun tick() {

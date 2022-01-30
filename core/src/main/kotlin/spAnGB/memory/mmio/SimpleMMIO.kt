@@ -23,7 +23,7 @@ abstract class SimpleMMIO(  // TODO: Remove this in future
     }
 
     override fun write32(address: Int, value: Int) {
-        this.value = value
+        this.value = value and 0xFFFF
     }
 
 }

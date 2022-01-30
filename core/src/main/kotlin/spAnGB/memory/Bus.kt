@@ -1,5 +1,6 @@
 package spAnGB.memory
 
+import spAnGB.memory.dma.DMA
 import spAnGB.memory.mmio.MMIO
 import spAnGB.ppu.PPU
 import spAnGB.utils.KiB
@@ -9,11 +10,18 @@ import java.nio.ByteBuffer
 class Bus(
     framebuffer: ByteBuffer,
     val bios: Bios = Bios("bios.bin"),
-//    val cartridge: Cartridge = Cartridge("suite.gba"),
-    val cartridge: Cartridge = Cartridge("shades.gba"),
+    val cartridge: Cartridge = Cartridge("suite.gba"),
+//    val cartridge: Cartridge = Cartridge("irqDemo (1).gba"),
 ): Memory {
     val wram = RAM(256*KiB)
     val iwram = RAM(32*KiB)
+
+    val dma = arrayOf(
+        DMA(this),
+        DMA(this),
+        DMA(this),
+        DMA(this, 0xFFFF)
+    )
     val mmio = MMIO(this)
 
     val ppu = PPU(framebuffer, mmio)

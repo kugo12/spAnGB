@@ -107,7 +107,7 @@ class CPU(
         handlePendingInterrupts()
 
         val op = pipeline.head
-        if (op == 0) TODO()
+        if (op == 0) TODO("[CPU] OpCode 0 at +- ${pc.hex}")
 
         when (state) {
             CPUState.ARM ->
@@ -166,17 +166,17 @@ class CPU(
 
             when (value) {  // restore state
                 CPUMode.User, CPUMode.System -> {
-                    _registers.swapWith(
+                    _registers.copyInto(
                         registers.content,
-                        8, 0, 6
+                        8, 0, 7
                     )
 
 //                    spsr = 0  // TODO: correctness of this?
                 }
                 CPUMode.FastInterrupt -> {
-                    fastIrqRegisters.swapWith(
+                    fastIrqRegisters.copyInto(
                         registers.content,
-                        8, 0, 6
+                        8, 0, 7
                     )
                     spsr = fastIrqSpsr
                 }
@@ -199,20 +199,24 @@ class CPU(
 
     fun handlePendingInterrupts() {
         if (!get(CPUFlag.I) && mmio.ime.enabled) {
-            val pending = (mmio.ir.value and mmio.ie.value) and 0xFFFF
+            val pending = (mmio.ir.value and mmio.ie.value) and 0x3FFF
 
             if (pending != 0) {
-
-                val link = pc - if (state == CPUState.ARM) 4 else 2
+                val link = pc - if (state == CPUState.ARM) 4 else 0
                 val cpsrCopy = cpsr
 
                 setCPUMode(CPUMode.Interrupt)
-                lr = link
+
                 pc = 0x18
-                spsr = cpsr
+                lr = link
+                spsr = cpsrCopy
                 this[CPUFlag.I] = true
-                changeState(0)
-                pipeline.armStep(this)
+                this[CPUFlag.T] = false
+                state = CPUState.ARM
+
+                pipeline.flush()
+                pipeline.armFill(this)
+
             }
         }
     }

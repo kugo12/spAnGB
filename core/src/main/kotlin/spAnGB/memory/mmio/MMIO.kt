@@ -15,7 +15,10 @@ class MMIO(
 
     override fun read8(address: Int) = get(address).read8(address)
     override fun read16(address: Int) = get(address).read16(address)
-    override fun read32(address: Int) = get(address).read32(address)
+    override fun read32(address: Int) =
+        read16(address).toUShort().toInt().or(
+            read16(address + 2).toUShort().toInt().shl(16)
+        )
 
     override fun write8(address: Int, value: Byte) = get(address).write8(address, value)
     override fun write16(address: Int, value: Short) = get(address).write16(address, value)
@@ -38,11 +41,27 @@ class MMIO(
             0x1A -> bus.ppu.bgYOffset[2]
             0x1C -> bus.ppu.bgXOffset[3]
             0x1E -> bus.ppu.bgYOffset[3]
+
+            0xB0, 0xB2 -> bus.dma[0].source
+            0xB4, 0xB6 -> bus.dma[0].destination
+            0xB8, 0xBA -> bus.dma[0]
+            0xBC, 0xBE -> bus.dma[1].source
+            0xC0, 0xC2 -> bus.dma[1].destination
+            0xC4, 0xC6 -> bus.dma[1]
+            0xC8, 0xCA -> bus.dma[2].source
+            0xCC, 0xCE -> bus.dma[2].destination
+            0xD0, 0xD2 -> bus.dma[2]
+            0xD4, 0xD6 -> bus.dma[3].source
+            0xD8, 0xDA -> bus.dma[3].destination
+            0xDC, 0xDE -> bus.dma[3]
+
             0x130 -> keyInput
             0x200 -> ie
             0x202 -> ir
             0x208 -> ime
+            0x20A -> Memory.silentStub  // TODO
             0x301 -> halt
             else -> Memory.stub
         }
 }
+

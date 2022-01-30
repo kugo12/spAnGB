@@ -30,7 +30,8 @@ class DisplayStat: Memory {
     override fun read32(address: Int): Int = value
 
     override fun write8(address: Int, value: Byte) {
-        TODO("Not yet implemented")
+        flags = value.toUByte().toInt()
+//        TODO("Not yet implemented")
     }
 
     override fun write16(address: Int, value: Short) {

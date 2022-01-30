@@ -9,7 +9,7 @@ inline infix fun Int.bit(bit: Int): Boolean = and((1 shl bit)) != 0
 inline fun Boolean.toInt(): Int = if (this) 1 else 0
 
 inline fun IntArray.swapWith(arr: IntArray, destinationOffset: Int, startIndex: Int, endIndex: Int) {
-    (startIndex .. endIndex).forEach { index ->
-        this[index] = arr[index + destinationOffset].also { arr[index + destinationOffset] = this[index] }
+    (0 .. endIndex - startIndex).forEach { index ->
+        this[index + startIndex] = arr[index + destinationOffset].also { arr[index + destinationOffset] = this[index + startIndex] }
     }
 }

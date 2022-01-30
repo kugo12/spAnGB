@@ -38,11 +38,23 @@ class Cartridge(
             }
 
 
-    override fun read8(address: Int): Byte = content[address and 0x1FFFFFF]
-    override fun read16(address: Int): Short = content.getShort(address and 0x1FFFFFF)
+    override fun read8(address: Int): Byte {
+        val addr = address and 0x1FFFFFF
+        if (addr >= size) {  // TODO
+            return 0
+        }
+        return content[addr]
+    }
+    override fun read16(address: Int): Short {
+        val addr = address and 0x1FFFFFF
+        if (addr >= size - 2) {  // TODO
+            return 0
+        }
+        return content.getShort(addr)
+    }
     override fun read32(address: Int): Int {
         val addr = address and 0x1FFFFFF
-        if (addr > size - 4) {  // TODO
+        if (addr >= size - 4) {  // TODO
             return 0
         }
         return content.getInt(addr)

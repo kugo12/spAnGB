@@ -4,6 +4,7 @@ package spAnGB.cpu.arm
 
 import spAnGB.cpu.*
 import spAnGB.utils.bit
+import spAnGB.utils.hex
 import spAnGB.utils.toInt
 
 
@@ -48,6 +49,8 @@ class DataProcessingDsl(val cpu: CPU, val instruction: Int) {
     inline fun performWithoutDestination(func: DataProcessingDsl.() -> Int) {
         result = func()
         if (destinationRegister == 15) {
+            println("[ARM] performWithoutDestination: destination == 15")
+
             cpu.setCPUMode(CPUMode.byMask[cpu.spsr and 0x1F]!!)
             cpu.state = if (cpu.spsr and CPUFlag.T.mask != 0) CPUState.THUMB else CPUState.ARM
             cpu.cpsr = cpu.spsr

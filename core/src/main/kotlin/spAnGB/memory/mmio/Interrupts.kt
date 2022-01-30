@@ -2,11 +2,12 @@ package spAnGB.memory.mmio
 
 import spAnGB.memory.Memory
 import spAnGB.utils.bit
+import spAnGB.utils.hex
 import spAnGB.utils.toInt
 import kotlin.experimental.inv
 
 class InterruptMasterEnable: Memory {
-    var enabled = true
+    var enabled = false
 
     override fun read8(address: Int): Byte = enabled.toInt().toByte()
 
