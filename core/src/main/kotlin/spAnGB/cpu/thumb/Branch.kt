@@ -20,7 +20,6 @@ val thumbConditionalBranch = ThumbInstruction(
 val thumbBranch = ThumbInstruction(
     { "b" },
     { instr ->
-//    (((((instr&0x7FF) << 5) as i16 as i32) >> 4) as u32)
         val offset = instr.and(0x7FF).shl(5).toShort().toInt().shr(4)
         pc += offset
 
@@ -49,8 +48,6 @@ val thumbLongBranchLink = ThumbInstruction(
 val thumbSwi = ThumbInstruction(
     { "Swi" },
     { instr ->
-        println("[CPU] THUMB SWI: ${instr.hex}")
-
         val cpsr = cpsr
 
         setCPUMode(CPUMode.Supervisor)

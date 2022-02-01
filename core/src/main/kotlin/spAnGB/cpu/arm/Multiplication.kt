@@ -47,8 +47,6 @@ val armUmullUmlal = ARMInstruction(
         registers[rdHigh] = (result shr 32).toUInt().toInt()
 
         if (instr bit 20) {
-//            this[CPUFlag.V] = false
-//            this[CPUFlag.C] = false
             this[CPUFlag.Z] = result == 0uL
             this[CPUFlag.N] = result and 0x8000000000000000uL != 0uL
         }
@@ -72,8 +70,6 @@ val armSmullSmlal = ARMInstruction(
         registers[rdHigh] = result.ushr(32).toInt()
 
         if (instr bit 20) {
-//            this[CPUFlag.V] = false
-//            this[CPUFlag.C] = false
             this[CPUFlag.Z] = result == 0L
             this[CPUFlag.N] = result < 0L
         }

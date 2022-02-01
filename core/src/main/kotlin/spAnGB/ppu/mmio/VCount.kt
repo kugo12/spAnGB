@@ -5,9 +5,7 @@ import spAnGB.memory.Memory
 class VCount: Memory {
     var ly = 0
 
-    override fun read8(address: Int): Byte {
-        TODO("Not yet implemented")
-    }
+    override fun read8(address: Int): Byte = ly.toByte()
 
     override fun read16(address: Int): Short = ly.toShort()
 

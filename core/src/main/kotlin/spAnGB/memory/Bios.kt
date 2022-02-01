@@ -22,9 +22,17 @@ class Bios(
         }
     }
 
-    override fun read8(address: Int): Byte = rom[address]
-    override fun read16(address: Int): Short = rom.getShort(address)
-    override fun read32(address: Int): Int = rom.getInt(address)
+    override fun read8(address: Int): Byte = 0 //rom[address]
+    override fun read16(address: Int): Short {
+        if (address >= size - 2) return 0
+
+        return rom.getShort(address)
+    }
+    override fun read32(address: Int): Int {
+        if (address >= size - 4) return 0
+
+        return rom.getInt(address)
+    }
 
     override fun write8(address: Int, value: Byte) {}
     override fun write16(address: Int, value: Short) {}

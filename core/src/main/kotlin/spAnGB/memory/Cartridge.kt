@@ -3,12 +3,17 @@ package spAnGB.memory
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.nio.IntBuffer
+import java.nio.ShortBuffer
 import java.nio.charset.StandardCharsets
 
 class Cartridge(
     path: String
 ) : Memory {
-    val content: ByteBuffer
+    val byteBuffer: ByteBuffer
+    val intBuffer: IntBuffer
+    val shortBuffer: ShortBuffer
+
     val title: String
     val size: Int
 
@@ -26,9 +31,11 @@ class Cartridge(
             .run { String(this, StandardCharsets.UTF_8) }
 
         size = rom.size
-        content = ByteBuffer.wrap(rom).apply {
+        byteBuffer = ByteBuffer.wrap(rom).apply {
             order(ByteOrder.LITTLE_ENDIAN)
         }
+        shortBuffer = byteBuffer.asShortBuffer()
+        intBuffer = byteBuffer.asIntBuffer()
     }
 
     private fun calculateHeaderChecksum(rom: ByteArray): Byte =
@@ -43,21 +50,21 @@ class Cartridge(
         if (addr >= size) {  // TODO
             return 0
         }
-        return content[addr]
+        return byteBuffer[addr]
     }
     override fun read16(address: Int): Short {
         val addr = address and 0x1FFFFFF
         if (addr >= size - 2) {  // TODO
             return 0
         }
-        return content.getShort(addr)
+        return shortBuffer[addr ushr 1]
     }
     override fun read32(address: Int): Int {
         val addr = address and 0x1FFFFFF
         if (addr >= size - 4) {  // TODO
             return 0
         }
-        return content.getInt(addr)
+        return intBuffer[addr ushr 2]
     }
 
     override fun write8(address: Int, value: Byte) {}

@@ -54,7 +54,7 @@ class KeyInput : Memory {
     }
 
     override fun write16(address: Int, value: Short) {
-        TODO("Not yet implemented")
+//        TODO("Not yet implemented")
     }
 
     override fun write32(address: Int, value: Int) {

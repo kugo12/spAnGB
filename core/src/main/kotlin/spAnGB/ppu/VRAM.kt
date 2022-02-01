@@ -7,28 +7,30 @@ import java.nio.ByteOrder
 
 class VRAM: Memory {
     val mask = 0x1FFFF
-    val content = ByteBuffer.allocate(96 * KiB).apply {
+    val byteBuffer = ByteBuffer.allocate(96 * KiB).apply {
         order(ByteOrder.LITTLE_ENDIAN)
     }
+    val shortBuffer = byteBuffer.asShortBuffer()
+    val intBuffer = byteBuffer.asIntBuffer()
 
     private inline fun parseAddress(address: Int) =
         address.and(mask).run {
             if (this > 0x17FFF) minus(0x8000) else this
         }
 
-    override fun read8(address: Int): Byte = content[parseAddress(address)]
-    override fun read16(address: Int): Short = content.getShort(parseAddress(address))
-    override fun read32(address: Int): Int = content.getInt(parseAddress(address))
+    override fun read8(address: Int): Byte = byteBuffer[parseAddress(address)]
+    override fun read16(address: Int): Short = shortBuffer[parseAddress(address) ushr 1]
+    override fun read32(address: Int): Int = intBuffer[parseAddress(address) ushr 2]
 
     override fun write8(address: Int, value: Byte) {
-        content.put(parseAddress(address), value)
+        byteBuffer.put(parseAddress(address), value)
     }
 
     override fun write16(address: Int, value: Short) {
-        content.putShort(parseAddress(address), value)
+        shortBuffer.put(parseAddress(address) ushr 1, value)
     }
 
     override fun write32(address: Int, value: Int) {
-        content.putInt(parseAddress(address), value)
+        intBuffer.put(parseAddress(address) ushr 2, value)
     }
 }

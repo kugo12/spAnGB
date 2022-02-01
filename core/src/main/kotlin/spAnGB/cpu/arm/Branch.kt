@@ -41,8 +41,6 @@ val armBl = ARMInstruction(
 val armSwi = ARMInstruction(
     { "Swi" },
     { instr ->
-        println("SWI: ${instr.hex}")
-
         val cpsr = cpsr
 
         setCPUMode(CPUMode.Supervisor)

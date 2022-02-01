@@ -8,7 +8,11 @@ value class Pipeline(
 ) {
     inline val head: Int get() = content[2]
 
-    inline fun flush(): Unit = content.fill(0)
+    inline fun flush() {
+        content[0] = 0
+        content[1] = 0
+        content[2] = 0
+    }
 
     inline fun thumbFill(cpu: CPU) {
         content[2] = cpu.bus.read16(cpu.pc).toUShort().toInt()
@@ -20,16 +24,16 @@ value class Pipeline(
 
     inline fun thumbRefill(cpu: CPU) {
         cpu.pc = cpu.pc and (1.inv())
-        content[1] = cpu.bus.read16(cpu.pc).toUShort().toInt()
+        content[1] = cpu.bus.read16(cpu.pc).toInt()
         cpu.pc += 2
-        content[0] = cpu.bus.read16(cpu.pc).toUShort().toInt()
+        content[0] = cpu.bus.read16(cpu.pc).toInt()
     }
 
     inline fun thumbStep(cpu: CPU) {
         content[2] = content[1]
         content[1] = content[0]
         cpu.pc += 2
-        content[0] = cpu.bus.read16(cpu.pc).toUShort().toInt()
+        content[0] = cpu.bus.read16(cpu.pc).toInt()
     }
 
     inline fun armFill(cpu: CPU) {

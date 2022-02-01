@@ -6,7 +6,6 @@ import spAnGB.cpu.arm.ARMOpFactory
 import spAnGB.cpu.thumb.ThumbOpFactory
 import spAnGB.memory.Bus
 import spAnGB.utils.hex
-import spAnGB.utils.swapWith
 
 
 fun undefinedThumbInstruction(op: Int) = ThumbInstruction(
@@ -20,8 +19,11 @@ fun undefinedArmInstruction(op: Int) = ARMInstruction(
 )
 
 class CPU(
-    val bus: Bus
+    b: Bus
 ) {
+    @JvmField
+    val bus: Bus = b
+
     @JvmInline
     value class Registers(val content: IntArray = IntArray(16)) {
         inline operator fun get(index: Int): Int = content[index]
@@ -30,14 +32,22 @@ class CPU(
     val mmio = bus.mmio
 
     val registers = Registers()
+
+    @JvmField
     val registerBanks = Array(4) { IntArray(3) }
-
+    @JvmField
     val fastIrqRegisters = IntArray(7)
+    @JvmField
     var fastIrqSpsr: Int = 0
-
+    @JvmField
     val _registers = IntArray(7)
+
+    @JvmField
     var cpsr: Int = 0
     var spsr: Int = 0
+
+    @JvmField
+    val ime = mmio.ime
 
     inline var pc: Int
         get() = registers.content[15]
@@ -57,7 +67,9 @@ class CPU(
     var mode = CPUMode.System
     val pipeline = Pipeline()
 
+    @JvmField
     val lutARM = Array(4096) { ARMOpFactory(it).execute }
+    @JvmField
     val lutThumb = Array(1024) { ThumbOpFactory(it).execute }
 
     init {
@@ -75,9 +87,10 @@ class CPU(
     inline operator fun Registers.set(index: Int, value: Int) {
         content[index] = value
         if (index == 15) {
-            when (state) {
-                CPUState.ARM -> pipeline.armRefill(this@CPU)
-                CPUState.THUMB -> pipeline.thumbRefill(this@CPU)
+            if (state == CPUState.ARM) {
+                pipeline.armRefill(this@CPU)
+            } else {
+                pipeline.thumbRefill(this@CPU)
             }
         }
     }
@@ -102,28 +115,22 @@ class CPU(
         else -> throw IllegalStateException("Undefined condition: ${op.hex}")
     }
 
-    @Suppress("ReplaceGetOrSet")
-    fun tick() {
+    inline fun tick() {
         handlePendingInterrupts()
 
         val op = pipeline.head
         if (op == 0) TODO("[CPU] OpCode 0 at +- ${pc.hex}")
 
-        when (state) {
-            CPUState.ARM ->
-                if (checkCondition(op ushr 28))
-                    lutARM
-                        .get(((op and 0xF0) ushr 4) or ((op ushr 16) and 0xFF0))
-                        .invoke(this, op)
-            CPUState.THUMB ->
-                lutThumb
-                    .get((op ushr 6) and 0x3FF)
-                    .invoke(this, op)
+        if (state == CPUState.THUMB) {
+            lutThumb[(op ushr 6) and 0x3FF](this, op)
+        } else if (checkCondition(op ushr 28)) {
+            lutARM[((op and 0xF0) ushr 4) or ((op ushr 16) and 0xFF0)](this, op)
         }
 
-        when (state) {
-            CPUState.ARM -> pipeline.armStep(this)
-            CPUState.THUMB -> pipeline.thumbStep(this)
+        if (state == CPUState.ARM) {
+            pipeline.armStep(this)
+        } else {
+            pipeline.thumbStep(this)
         }
     }
 
@@ -137,7 +144,7 @@ class CPU(
         }
     }
 
-    fun setCPUMode(value: CPUMode) {  // page 55
+    inline fun setCPUMode(value: CPUMode) {  // page 55
         if (mode != value) {
             when (mode) {  // save state
                 CPUMode.User, CPUMode.System -> {
@@ -197,8 +204,8 @@ class CPU(
         }
     }
 
-    fun handlePendingInterrupts() {
-        if (!get(CPUFlag.I) && mmio.ime.enabled) {
+    inline fun handlePendingInterrupts() {
+        if (!get(CPUFlag.I) && ime.enabled) {
             val pending = (mmio.ir.value and mmio.ie.value) and 0x3FFF
 
             if (pending != 0) {
@@ -216,7 +223,6 @@ class CPU(
 
                 pipeline.flush()
                 pipeline.armFill(this)
-
             }
         }
     }

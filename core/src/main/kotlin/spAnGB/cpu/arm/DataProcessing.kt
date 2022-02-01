@@ -40,10 +40,8 @@ class DataProcessingDsl(val cpu: CPU, val instruction: Int) {
     }
 
     inline fun perform(func: DataProcessingDsl.() -> Int) {
-        func().run {
-            result = this
-            cpu.apply { registers[destinationRegister] = result }
-        }
+        result = func()
+        cpu.apply { registers[destinationRegister] = result }
     }
 
     inline fun performWithoutDestination(func: DataProcessingDsl.() -> Int) {
