@@ -4,6 +4,8 @@ import spAnGB.memory.Bus
 import spAnGB.memory.Memory
 import spAnGB.memory.dma.mmio.DMAAddress
 import spAnGB.utils.bit
+import spAnGB.utils.hex
+import spAnGB.utils.uInt
 import kotlin.experimental.and
 
 class DMA(  // It is dma control by itself
@@ -72,18 +74,16 @@ class DMA(  // It is dma control by itself
     }
 
     override fun write16(address: Int, value: Short) {
-        count = (value and mask.toShort()).toInt()
-        if (count == 0) count = mask + 1
-//        TODO("Not yet implemented")
+        if (address bit 1) {
+            this.value = value.toInt()
+            if (enabled) transferImmediately()
+        } else {
+            count = value.toInt() and mask
+            if (count == 0) count = mask + 1
+        }
     }
 
-    override fun write32(address: Int, value: Int) {
-        count = value and mask
-        if (count == 0) count = mask + 1
-
-        this.value = value.ushr(16)
-        if (enabled) transferImmediately()
-    }
+    override fun write32(address: Int, value: Int) { TODO() }
 
     fun transferImmediately() {
         // 1220 memory tests

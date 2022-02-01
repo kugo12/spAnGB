@@ -95,7 +95,7 @@ class CPU(
         }
     }
 
-    inline fun checkCondition(op: Int): Boolean = when (op) {
+    fun checkCondition(op: Int): Boolean = when (op) {
         0x0 -> this[CPUFlag.Z]
         0x1 -> !this[CPUFlag.Z]
         0x2 -> this[CPUFlag.C]
@@ -115,7 +115,7 @@ class CPU(
         else -> throw IllegalStateException("Undefined condition: ${op.hex}")
     }
 
-    inline fun tick() {
+    fun tick() {
         handlePendingInterrupts()
 
         val op = pipeline.head
@@ -134,7 +134,7 @@ class CPU(
         }
     }
 
-    inline fun changeState(stateBit: Int) {
+    fun changeState(stateBit: Int) {
         state = CPUState.from(stateBit)
         this[CPUFlag.T] = state == CPUState.THUMB
 
@@ -144,7 +144,7 @@ class CPU(
         }
     }
 
-    inline fun setCPUMode(value: CPUMode) {  // page 55
+    fun setCPUMode(value: CPUMode) {  // page 55
         if (mode != value) {
             when (mode) {  // save state
                 CPUMode.User, CPUMode.System -> {
@@ -204,7 +204,7 @@ class CPU(
         }
     }
 
-    inline fun handlePendingInterrupts() {
+    fun handlePendingInterrupts() {
         if (!get(CPUFlag.I) && ime.enabled) {
             val pending = (mmio.ir.value and mmio.ie.value) and 0x3FFF
 

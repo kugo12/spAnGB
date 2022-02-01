@@ -30,7 +30,7 @@ val keyMap = listOf(
     Input.Keys.Q
 )
 
-class KeyInput : Memory {
+class KeyInput : Memory {  // read only
     var value = 0x3FF
 
     fun poll() {
@@ -49,15 +49,7 @@ class KeyInput : Memory {
 
     override fun read32(address: Int): Int = value
 
-    override fun write8(address: Int, value: Byte) {
-        TODO("Not yet implemented")
-    }
-
-    override fun write16(address: Int, value: Short) {
-//        TODO("Not yet implemented")
-    }
-
-    override fun write32(address: Int, value: Int) {
-        TODO("Not yet implemented")
-    }
+    override fun write8(address: Int, value: Byte) {}
+    override fun write16(address: Int, value: Short) {}
+    override fun write32(address: Int, value: Int) {}
 }

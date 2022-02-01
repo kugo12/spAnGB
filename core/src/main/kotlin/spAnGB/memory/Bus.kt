@@ -11,9 +11,8 @@ import java.nio.ByteBuffer
 class Bus(
     framebuffer: ByteBuffer,
     val bios: Bios = Bios("bios.bin"),
-//    val cartridge: Cartridge = Cartridge("suite.gba"),
     @JvmField
-    val cartridge: Cartridge = Cartridge("kirbynightmare.gba"),
+    val cartridge: Cartridge,
 ): Memory {
     private val wram = RAM(256 * KiB)
     private val iwram = RAM(32 * KiB)

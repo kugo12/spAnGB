@@ -1,6 +1,7 @@
 package spAnGB.memory.mmio
 
 import spAnGB.memory.Memory
+import spAnGB.utils.uInt
 
 abstract class SimpleMMIO(  // TODO: Remove this in future
     var value: Int = 0
@@ -19,7 +20,7 @@ abstract class SimpleMMIO(  // TODO: Remove this in future
     }
 
     override fun write16(address: Int, value: Short) {
-        this.value = value.toUShort().toInt()
+        this.value = value.uInt
     }
 
     override fun write32(address: Int, value: Int) {

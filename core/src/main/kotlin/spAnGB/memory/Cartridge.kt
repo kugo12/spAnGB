@@ -8,7 +8,7 @@ import java.nio.ShortBuffer
 import java.nio.charset.StandardCharsets
 
 class Cartridge(
-    path: String
+    file: File
 ) : Memory {
     val byteBuffer: ByteBuffer
     val intBuffer: IntBuffer
@@ -18,8 +18,7 @@ class Cartridge(
     val size: Int
 
     init {
-        val rom = File(path)
-            .readBytes()
+        val rom = file.readBytes()
 
         if (calculateHeaderChecksum(rom) != rom[0xBD]) {
             throw IllegalStateException("Invalid rom file")

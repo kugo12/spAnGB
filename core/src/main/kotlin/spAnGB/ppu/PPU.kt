@@ -43,9 +43,15 @@ class PPU(
         set(2, c.ushr(10).and(0x1F).shl(3).toByte())
     }
 
-    fun getBgColorFromPalette(color: Byte): ByteArray = palette.shortBuffer[color.toUByte().toInt()].toColor()
+    fun Short.putToBuffer(at: Int) {
+        val c = toInt()
 
-    inline fun putToBuffer(pos: Int, color: ByteArray) {
+        framebuffer.put(at, c.and(0x1F).shl(3).toByte())
+        framebuffer.put(at + 1, c.ushr(5).and(0x1F).shl(3).toByte())
+        framebuffer.put(at + 2, c.ushr(10).and(0x1F).shl(3).toByte())
+    }
+
+    fun putToBuffer(pos: Int, color: ByteArray) {
         framebuffer.put(pos, color[0])
         framebuffer.put(pos + 1, color[1])
         framebuffer.put(pos + 2, color[2])
@@ -55,21 +61,17 @@ class PPU(
         val offset = vcount.ly * 240
 
         (offset until offset + 240).forEach {
-            framebuffer.put(
-                it * 3,
-                getBgColorFromPalette(vram.byteBuffer[it])
-            )
+            palette.shortBuffer[vram.byteBuffer[it].toInt() and 0xFF]
+                .putToBuffer(it * 3)
         }
     }
 
     fun renderBgMode3() {
-        val offset = vcount.ly * 480
+        val offset = vcount.ly * 240
 
-        (offset until offset + 480 step 2).forEach {
-            framebuffer.put(
-                (it / 2) * 3,
-                vram.byteBuffer.getShort(it).toColor()
-            )
+        (offset until offset + 240).forEach {
+            vram.shortBuffer[it ushr 1]
+                .putToBuffer(it * 3)
         }
     }
 
@@ -86,7 +88,7 @@ class PPU(
         val color = palette.shortBuffer[0].toColor()
 
         for (it in offset until offset + 240) {
-            putToBuffer(it*3, color)
+            putToBuffer(it * 3, color)
         }
     }
 
@@ -96,26 +98,105 @@ class PPU(
             if (value bit 8) TODO("Rotation not supported rn")
         }
 
-        val x: Int get() = value.ushr(16).and(0x1FF).toInt()
-        val y: Int get() = value.and(0xFF).toInt()
-        val disabled: Boolean get() = !(value bit 8) && value bit 9
-        val isStraightFromPalette: Boolean get() = value bit 13
-        val horizontalFlip: Boolean get() = value bit 28
-        val verticalFlip: Boolean get() = value bit 29
-        val tileNumber: Int get() = value.ushr(32).and(0x3FF).toInt()
-        val paletteNumber: Int get() = value.ushr(44).and(0xF).toInt()
+        inline val x: Int get() = value.ushr(16).and(0x1FF).toInt()
+        inline val y: Int get() = value.and(0xFF).toInt()
+        inline val disabled: Boolean get() = !(value bit 8) && value bit 9
+        inline val is8Bit: Boolean get() = value bit 13
+        inline val horizontalFlip: Boolean get() = value bit 28
+        inline val verticalFlip: Boolean get() = value bit 29
+        inline val tileNumber: Int get() = value.ushr(32).and(0x3FF).toInt()
+        inline val paletteNumber: Int get() = value.ushr(44).and(0xF).toInt()
 
-//        val shape: Int
+        inline val shape: Int get() = value.toInt().ushr(14).and(0x3)
+        inline val size: Int get() = value.ushr(30).and(0x3).toInt()
+    }
+
+    @JvmField  // width to height, [shape][size]
+    val spriteSizes: Array<Array<Pair<Int, Int>>> = arrayOf(
+        arrayOf(  // square
+            8 to 8,
+            16 to 16,
+            32 to 32,
+            64 to 64
+        ),
+        arrayOf(  // horizontal
+            16 to 8,
+            32 to 8,
+            32 to 16,
+            64 to 32
+        ),
+        arrayOf(  // vertical
+            8 to 16,
+            8 to 32,
+            16 to 32,
+            32 to 64
+        )
+    )
+
+    fun SpriteData.render() {
+        val lyc = vcount.ly
+        val (width, height) = spriteSizes[shape][size]
+        val x = x
+        val y = y
+
+        if (is8Bit) {
+            TODO("8 bit sprites not implemented rn")
+        } else {
+            val paletteOffset = 16 * paletteNumber + 0x100
+            val rowSize = 4
+            val tileSize = rowSize * 8
+
+            val tileRowOffset = 0x10000 +
+                    ((lyc - y) % 8) * rowSize +
+                    tileNumber * tileSize +
+                    ((lyc - y) / 8) * 32 * tileSize
+            val screenPixelOffset = (lyc * 240 + x) * 3
+            var pixelsLeft = if (x > 240 - width) 240 - x else width
+            val pix = pixelsLeft
+
+            while (pixelsLeft > 0) {
+                val currentTilePixel = pix - pixelsLeft
+                val twoPixels = vram.byteBuffer[
+                        tileRowOffset +
+                                (currentTilePixel / 2) % rowSize +
+                                ((currentTilePixel / 2) / rowSize) * tileSize
+                ]
+                val firstColor = twoPixels.toInt() and 0xF
+                val secondColor = twoPixels.toInt().ushr(4).and(0xF)
+
+                if (firstColor != 0)
+                    palette.shortBuffer[firstColor + paletteOffset]
+                        .putToBuffer(screenPixelOffset + currentTilePixel * 3)
+                pixelsLeft -= 1
+                if (pixelsLeft <= 0) return
+
+                if (secondColor != 0)
+                    palette.shortBuffer[secondColor + paletteOffset]
+                        .putToBuffer(screenPixelOffset + currentTilePixel * 3 + 3)
+                pixelsLeft -= 1
+            }
+        }
+    }
+
+    fun SpriteData.shouldBeRendered(): Boolean {
+        val height = spriteSizes[shape][size].second
+        val lyc = vcount.ly
+        val y = y
+        val x = x
+
+        return !disabled && lyc >= y && lyc < y+height && x < 240
     }
 
     fun renderSprites() {
+        if (displayControl.isOneDimensionalMapping) TODO("One dimensional mapping not implemented rn")
+
         val lyc = vcount.ly
 
         (0 until 128)
-            .map { SpriteData(attributes.byteBuffer.getLong(it shl 3)) }
-            .stream()
-            .filter {
-                !it.disabled
+            .forEach {
+                val sprite = SpriteData(attributes.byteBuffer.getLong(it shl 3))
+                if (sprite.shouldBeRendered())
+                    sprite.render()
             }
     }
 
@@ -155,10 +236,8 @@ class PPU(
                             val color = vram.byteBuffer[tileRowOffset + it].toInt()
 
                             if (color != 0)
-                                putToBuffer(
-                                    currentRow + currentPixel * 3,
-                                    palette.shortBuffer[color].toColor()
-                                )
+                                palette.shortBuffer[color]
+                                    .putToBuffer(currentRow + currentPixel * 3)
                             currentPixel += 1
                             if (currentPixel >= 240) return
                         }
@@ -175,18 +254,14 @@ class PPU(
                             val secondColor = tilePixels.ushr(4).and(0xF)
 
                             if (firstColor != 0)
-                                putToBuffer(
-                                    currentRow + currentPixel * 3,
-                                    palette.shortBuffer[firstColor + paletteOffset].toColor()
-                                )
+                                palette.shortBuffer[firstColor + paletteOffset]
+                                    .putToBuffer(currentRow + currentPixel * 3)
                             currentPixel += 1
                             if (currentPixel >= 240) return
 
                             if (secondColor != 0)
-                                putToBuffer(
-                                    currentRow + currentPixel * 3,
-                                    palette.shortBuffer[secondColor + paletteOffset].toColor()
-                                )
+                                palette.shortBuffer[secondColor + paletteOffset]
+                                    .putToBuffer(currentRow + currentPixel * 3)
                             currentPixel += 1
                             if (currentPixel >= 240) return
                         }
@@ -205,7 +280,7 @@ class PPU(
         displayStat[DisplayStatFlag.VCOUNTER] = vc
     }
 
-    inline fun tick() {
+    fun tick() {
         if (cyclesLeft > 0) {
             cyclesLeft -= 1
             return
@@ -221,6 +296,8 @@ class PPU(
                     4 -> renderBgMode4()
                     else -> TODO("Background mode ${displayControl.bgMode} not implemented")
                 }
+
+                renderSprites()
 
                 state = PPUState.HBlank
                 cyclesLeft = HBLANK_CYCLES

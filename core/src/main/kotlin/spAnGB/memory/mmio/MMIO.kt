@@ -22,7 +22,10 @@ class MMIO(
 
     override fun write8(address: Int, value: Byte) = get(address).write8(address, value)
     override fun write16(address: Int, value: Short) = get(address).write16(address, value)
-    override fun write32(address: Int, value: Int) = get(address).write32(address, value)
+    override fun write32(address: Int, value: Int) {
+        get(address).write16(address, value.toShort())
+        get(address + 2).write16(address + 2, value.ushr(16).toShort())
+    }
 
     inline operator fun get(address: Int): Memory =
         when (address and 0xFFFFFF) {

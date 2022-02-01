@@ -22,6 +22,8 @@ enum class DisplayControlFlag(val mask: Int) {
 class DisplayControl : SimpleMMIO() {
     inline val bgMode: Int get() = value and 7
 
+    inline val isOneDimensionalMapping: Boolean get() = value bit 6
+
     inline val isBg0: Boolean get() = value bit 8
     inline val isBg1: Boolean get() = value bit 9
     inline val isBg2: Boolean get() = value bit 10
