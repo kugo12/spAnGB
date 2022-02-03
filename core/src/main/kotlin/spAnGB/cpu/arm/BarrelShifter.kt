@@ -6,77 +6,60 @@ import spAnGB.cpu.CPU
 import spAnGB.cpu.CPUFlag
 import spAnGB.utils.bit
 import spAnGB.utils.toInt
-import java.lang.IllegalStateException
 
-inline fun CPU.barrelShifterLogicalLeft(value: Int, amount: Int): Pair<Int, Boolean> =
+fun CPU.barrelShifterLogicalLeft(value: Int, amount: Int): Int =
     if (amount > 31) {
-        Pair(
-            0,
-            (amount == 32) && (value and 1 != 0)
-        )
+        shifterCarry = (amount == 32) && (value and 1 != 0)
+        0
     } else if (amount == 0) {
-        Pair(
-            value,
-            this[CPUFlag.C]
-        )
+        shifterCarry = this[CPUFlag.C]
+        value
     } else {
-        Pair(
-            value shl amount,
-            value bit (32 - amount)
-        )
+        shifterCarry = value bit (32 - amount)
+        value shl amount
     }
 
-inline fun CPU.barrelShifterLogicalRight(value: Int, amount: Int): Pair<Int, Boolean> =
+fun CPU.barrelShifterLogicalRight(value: Int, amount: Int): Int =
     if (amount > 31) {
-        Pair(
-            0,
-            (amount == 32) && (value < 0)
-        )
+        shifterCarry = (amount == 32) && (value < 0)
+        0
     } else if (amount == 0) {
-        Pair(
-            value,
-            this[CPUFlag.C]
-        )
+        shifterCarry = this[CPUFlag.C]
+        value
     } else {
-        Pair(
-            value ushr amount,
-            value bit (amount - 1)
-        )
+        shifterCarry = value bit (amount - 1)
+        value ushr amount
     }
 
-inline fun CPU.barrelShifterArithmeticRight(value: Int, amount: Int): Pair<Int, Boolean> =
+fun CPU.barrelShifterArithmeticRight(value: Int, amount: Int): Int =
     if (amount > 31) {
-        Pair(
-            value shr 31,
-            value < 0
-        )
+        shifterCarry = value < 0
+        value shr 31
     } else if (amount == 0) {
-        Pair(
-            value,
-            this[CPUFlag.C]
-        )
+        shifterCarry = this[CPUFlag.C]
+        value
     } else {
-        Pair(
-            value shr amount,
-            value.bit(amount - 1)
-        )
+        shifterCarry = value.bit(amount - 1)
+        value shr amount
     }
 
-inline fun CPU.barrelShifterRotateRight(value: Int, amount: Int): Pair<Int, Boolean> =
+fun CPU.barrelShifterRotateRight(value: Int, amount: Int): Int =
     if (amount == 0) {
-        Pair(value, this[CPUFlag.C])
+        shifterCarry = this[CPUFlag.C]
+        value
     } else {
         val tmp = value.rotateRight(amount)
-        Pair(tmp, tmp < 0)
+        shifterCarry = tmp < 0
+        tmp
     }
 
-inline fun CPU.barrelShifterRotateRightExtended(value: Int): Pair<Int, Boolean> =
-    Pair(
-        (value ushr 1) or (this[CPUFlag.C].toInt().shl(31)),
-        value and 1 != 0
-    )
+fun CPU.barrelShifterRotateRightExtended(value: Int): Int {
+    shifterCarry = value and 1 != 0
 
-inline fun CPU.operand(operand: Int, value: Int): Pair<Int, Boolean> {
+    return (value ushr 1) or (this[CPUFlag.C].toInt().shl(31))
+}
+
+fun CPU.operand(operand: Int, value: Int): Int {
     var shiftType = (operand ushr 1) and 0x3
     val amount = when (operand bit 0) {
         true -> registers[(operand ushr 4) and 0xF] and 0xFF

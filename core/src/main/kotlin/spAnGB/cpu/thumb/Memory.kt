@@ -3,6 +3,7 @@ package spAnGB.cpu.thumb
 import spAnGB.cpu.CPU
 import spAnGB.cpu.ThumbInstruction
 import spAnGB.utils.bit
+import spAnGB.utils.uInt
 
 val thumbLdrPcrelImm = ThumbInstruction(
     { "LdrPcrelImm" },
@@ -24,7 +25,7 @@ val thumbLdrStrRegOff = ThumbInstruction(
 
         if (instr bit 11) {  // load
             registers[rd] = when (instr bit 10) {
-                true -> bus.read8(address).toUByte().toInt()
+                true -> bus.read8(address).uInt
                 false -> bus.read32(address).rotateRight(address.and(3).shl(3))
             }
         } else {  // store
@@ -48,7 +49,7 @@ val thumbLdrh = ThumbInstruction(
     { "Ldrh" },
     { instr ->
         val address = getAddress(instr)
-        registers[instr and 0x7] = bus.read16(address).toUShort().toInt().rotateRight(address.and(0x1).shl(3))
+        registers[instr and 0x7] = bus.read16(address).uInt.rotateRight(address.and(0x1).shl(3))
     }
 )
 
@@ -77,7 +78,7 @@ val thumbLdrStrImmOff = ThumbInstruction(
 
         if (instr bit 11) {
             registers[rd] = when (instr bit 12) {
-                true -> bus.read8(address + offset.ushr(2)).toUByte().toInt()
+                true -> bus.read8(address + offset.ushr(2)).uInt
                 false -> bus.read32(address + offset).rotateRight(address.plus(offset).and(0x3).shl(3))
             }
         } else {
@@ -96,7 +97,7 @@ val thumbLdrhStrhImmOff = ThumbInstruction(
         val rd = instr and 0x7
 
         if (instr bit 11) {
-            registers[rd] = bus.read16(address).toUShort().toInt().rotateRight((address and 1) shl 3)
+            registers[rd] = bus.read16(address).uInt.rotateRight((address and 1) shl 3)
         } else {
             bus.write16(address, registers[rd].toShort())
         }

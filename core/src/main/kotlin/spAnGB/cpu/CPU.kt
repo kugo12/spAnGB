@@ -47,6 +47,9 @@ class CPU(
     var spsr: Int = 0
 
     @JvmField
+    var shifterCarry = false
+
+    @JvmField
     val ime = mmio.ime
 
     inline var pc: Int

@@ -5,6 +5,7 @@ import spAnGB.cpu.CPUFlag
 import spAnGB.cpu.ThumbInstruction
 import spAnGB.utils.bit
 import spAnGB.utils.toInt
+import spAnGB.utils.uLong
 
 private class HiLoOperands(val first: Int, val second: Int, val destinationLocation: Int)
 
@@ -57,6 +58,6 @@ val thumbHiLoCmp = ThumbInstruction(
         this[CPUFlag.N] = tmp < 0
         this[CPUFlag.Z] = tmp == 0
         this[CPUFlag.V] = (op.second xor op.first) and (op.first xor tmp).inv() < 0
-        this[CPUFlag.C] = op.first.toUInt().toULong() - op.second.toUInt().toULong() <= UInt.MAX_VALUE.toULong()
+        this[CPUFlag.C] = !((op.first.uLong - op.second.uLong) bit 32)
     }
 )

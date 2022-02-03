@@ -5,13 +5,14 @@ import spAnGB.cpu.CPU
 import spAnGB.cpu.CPUMode
 import spAnGB.utils.bit
 import spAnGB.utils.hex
+import spAnGB.utils.uInt
 
 class MemoryAccessDsl(
     val cpu: CPU,
     val instruction: Int,
     offsetCalc: CPU.(Int) -> Int = {
         when (instruction bit 25) {
-            true -> cpu.operand(instruction ushr 4, cpu.registers[instruction and 0xF]).first
+            true -> cpu.operand(instruction ushr 4, cpu.registers[instruction and 0xF])
             false -> instruction and 0xFFF
         }
     }
@@ -64,7 +65,7 @@ val armSwp = ARMInstruction(
 
         when (instr bit 22) {
             true -> {  // byte
-                registers[dest] = bus.read8(rn).toUByte().toInt()
+                registers[dest] = bus.read8(rn).uInt
                 bus.write8(rn, rm.toByte())
             }
             false -> {  // word
@@ -82,7 +83,7 @@ val armLdr = ARMInstruction(
     memoryInstruction {
         perform {
             val value = when (instruction bit 22) {
-                true -> bus.read8(address).toUByte().toInt()
+                true -> bus.read8(address).uInt
                 false -> bus.read32(address).rotateRight((address and 3) shl 3)
             }
             saveAddressWithOffsetIfEnabled()
@@ -96,7 +97,7 @@ val armStr = ARMInstruction(
     { instr ->
         pc += 4
         val offset = when (instr bit 25) {
-            true -> operand(instr ushr 4, registers[instr and 0xF]).first
+            true -> operand(instr ushr 4, registers[instr and 0xF])
             false -> instr and 0xFFF
         }
 
@@ -134,8 +135,8 @@ val armLdrhsb = ARMInstruction(
     hsbMemoryInstruction { // LDRH LDRSH LDRB LDRSB
         perform {
             val value = when ((instruction ushr 5) and 0x3) {  // TODO
-                0 -> bus.read8(address).toUByte().toInt()
-                1 -> bus.read16(address).toUShort().toInt().rotateRight((address and 1) shl 3)
+                0 -> bus.read8(address).uInt
+                1 -> bus.read16(address).uInt.rotateRight((address and 1) shl 3)
                 2 -> bus.read8(address).toInt()
                 3 -> bus.read16(address).toInt() shr ((address and 1) shl 3)
                 else -> throw IllegalStateException("Unreachable")

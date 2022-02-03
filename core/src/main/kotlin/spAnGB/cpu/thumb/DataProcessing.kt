@@ -8,10 +8,12 @@ import spAnGB.cpu.arm.barrelShifterArithmeticRight
 import spAnGB.cpu.arm.barrelShifterLogicalLeft
 import spAnGB.cpu.arm.barrelShifterLogicalRight
 import spAnGB.cpu.arm.barrelShifterRotateRight
+import spAnGB.utils.bit
 import spAnGB.utils.hex
 import spAnGB.utils.toInt
+import spAnGB.utils.uLong
 
-class DataProcessingDsl(val cpu: CPU, val instruction: Int) {
+class DataProcessingDsl(val cpu: CPU, instruction: Int) {
     val operand: Int = cpu.registers[(instruction ushr 3) and 0x7]
     val destinationRegister: Int = instruction and 0x7
     var result: Int = 0
@@ -25,12 +27,11 @@ class DataProcessingDsl(val cpu: CPU, val instruction: Int) {
         }
 
     inline fun perform(func: DataProcessingDsl.() -> Int) {
-        func().run {
-            result = this
-            destination = this
-            N = result < 0
-            Z = result == 0
-        }
+        val tmp = func()
+        result = tmp
+        destination = tmp
+        N = tmp < 0
+        Z = tmp == 0
     }
 
     inline fun performWithoutDestination(func: DataProcessingDsl.() -> Int) {
@@ -39,28 +40,28 @@ class DataProcessingDsl(val cpu: CPU, val instruction: Int) {
         Z = result == 0
     }
 
-    inline fun performShift(func: CPU.(Int, Int) -> Pair<Int, Boolean>) {
+    inline fun performShift(func: CPU.(Int, Int) -> Int) {
         val tmp = cpu.func(destination, operand and 0xFF)
-        destination = tmp.first
-        C = tmp.second
-        N = tmp.first < 0
-        Z = tmp.first == 0
+        destination = tmp
+        C = cpu.shifterCarry
+        N = tmp < 0
+        Z = tmp == 0
     }
 
     inline fun overflow() {
         V = (operand xor destination).inv() and (destination xor result) < 0
     }
 
-    inline fun dumbCarry(func: DataProcessingDsl.() -> ULong) {  // TODO
-        C = func() > UInt.MAX_VALUE.toULong()
+    inline fun dumbCarry(func: DataProcessingDsl.() -> Long) {  // TODO
+        C = func() bit 32
     }
 
     inline fun subOverflow(dest: Int = this.dest, op: Int = operand) {
         V = (dest xor op) and (op xor result).inv() < 0
     }
 
-    inline fun dumbBorrow(func: DataProcessingDsl.() -> ULong) {  // TODO
-        C = func() <= UInt.MAX_VALUE.toULong()
+    inline fun dumbBorrow(func: DataProcessingDsl.() -> Long) {  // TODO
+        C = !(func() bit 32)
     }
 
 
@@ -103,7 +104,7 @@ private inline fun simpleInstructionWithoutDestination(crossinline func: DataPro
     DataProcessingDsl(this, instr).performWithoutDestination(func)
 }
 
-private inline fun shiftInstruction(crossinline func: CPU.(Int, Int) -> Pair<Int, Boolean>): CPU.(Int) -> Unit = { instr ->
+private inline fun shiftInstruction(crossinline func: CPU.(Int, Int) -> Int): CPU.(Int) -> Unit = { instr ->
     DataProcessingDsl(this, instr).performShift(func)
 }
 
@@ -170,7 +171,7 @@ val thumbAdc = ThumbInstruction(
     instruction {
         perform { destination + operand + carry }
         overflow() // todo
-        dumbCarry { destination.toUInt().toULong() + operand.toUInt().toULong() + carry.toUInt().toULong() }
+        dumbCarry { destination.uLong + operand.uLong + carry.uLong }
     }
 )
 
@@ -179,7 +180,7 @@ val thumbSbc = ThumbInstruction(
     instruction {
         perform { destination - operand - 1 + carry }
         subOverflow()
-        dumbBorrow { destination.toUInt().toULong() - operand.toUInt().toULong() - 1uL + carry.toUInt().toULong() }
+        dumbBorrow { destination.uLong - operand.uLong - 1L + carry.uLong }
     }
 )
 
@@ -188,7 +189,7 @@ val thumbCmp = ThumbInstruction(
     instruction {
         performWithoutDestination { destination - operand }
         subOverflow()
-        dumbBorrow { destination.toUInt().toULong() - operand.toUInt().toULong() }
+        dumbBorrow { destination.uLong - operand.uLong }
     }
 )
 
@@ -197,6 +198,6 @@ val thumbCmn = ThumbInstruction(
     instruction {
         performWithoutDestination { destination + operand }
         overflow()
-        dumbCarry { destination.toUInt().toULong() + operand.toUInt().toULong() }
+        dumbCarry { destination.uLong + operand.uLong }
     }
 )

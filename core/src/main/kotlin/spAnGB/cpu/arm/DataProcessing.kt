@@ -6,18 +6,18 @@ import spAnGB.cpu.*
 import spAnGB.utils.bit
 import spAnGB.utils.hex
 import spAnGB.utils.toInt
+import spAnGB.utils.uLong
 
 
 class DataProcessingDsl(val cpu: CPU, val instruction: Int) {
     val firstOperand: Int
     val secondOperand: Int
-    val shifterCarry: Boolean
     val destinationRegister: Int = (instruction ushr 12) and 0xF
     var result: Int = 0
 
 
     init {
-        when {
+        secondOperand = when {
             !(instruction bit 25) && instruction bit 4 -> {
                 cpu.pc += 4
                 val tmp = cpu.operand(instruction ushr 4, cpu.registers[instruction and 0xF])
@@ -33,9 +33,6 @@ class DataProcessingDsl(val cpu: CPU, val instruction: Int) {
                 firstOperand = cpu.registers[(instruction ushr 16) and 0xF]
                 cpu.operand(instruction ushr 4, cpu.registers[instruction and 0xF])
             }
-        }.run {
-            secondOperand = first
-            shifterCarry = second
         }
     }
 
@@ -67,7 +64,7 @@ class DataProcessingDsl(val cpu: CPU, val instruction: Int) {
         if (instruction bit 20) {
             N = result < 0
             Z = result == 0
-            C = shifterCarry
+            C = cpu.shifterCarry
             func()
         }
     }
@@ -94,12 +91,12 @@ class DataProcessingDsl(val cpu: CPU, val instruction: Int) {
         V = (op1 xor op2) and (op2 xor result).inv() < 0
     }
 
-    inline fun dumbCarry(func: DataProcessingDsl.() -> ULong) {  // TODO
-        C = func() > UInt.MAX_VALUE.toULong()
+    inline fun dumbCarry(func: DataProcessingDsl.() -> Long) {  // TODO
+        C = func() bit 32
     }
 
-    inline fun dumbBorrow(func: DataProcessingDsl.() -> ULong) {  // TODO
-        C = func() <= UInt.MAX_VALUE.toULong()
+    inline fun dumbBorrow(func: DataProcessingDsl.() -> Long) {  // TODO
+        C = !(func() bit 32)
     }
 
     inline val carry: Int get() = C.toInt()
@@ -212,7 +209,7 @@ val armSub = ARMInstruction(
         result = firstOperand - secondOperand
         setFlags {
             subOverflow()
-            dumbBorrow { firstOperand.toUInt().toULong() - secondOperand.toUInt().toULong() }
+            dumbBorrow { firstOperand.uLong - secondOperand.uLong }
 
             if (checkDestinationPC()) return@instruction
         }
@@ -229,8 +226,7 @@ val armRsb = ARMInstruction(
         perform { secondOperand - firstOperand }
         setFlags {
             subOverflow(secondOperand, firstOperand)
-//            C = result.toUInt() <= secondOperand.toUInt()
-            dumbBorrow { secondOperand.toUInt().toULong() - firstOperand.toUInt().toULong() }
+            dumbBorrow { secondOperand.uLong - firstOperand.uLong }
         }
     }
 )
@@ -241,7 +237,7 @@ val armAdd = ARMInstruction(
         perform { firstOperand + secondOperand }
         setFlags {
             overflow()
-            dumbCarry { firstOperand.toUInt().toULong() + secondOperand.toUInt().toULong() }
+            dumbCarry { firstOperand.uLong + secondOperand.uLong }
         }
     }
 )
@@ -252,7 +248,7 @@ val armAdc = ARMInstruction(
         perform { firstOperand + secondOperand + carry }
         setFlags {
             overflow()
-            dumbCarry { firstOperand.toUInt().toULong() + secondOperand.toUInt().toULong() + carry.toUInt().toULong() }
+            dumbCarry { firstOperand.uLong + secondOperand.uLong + carry.uLong }
         }
     }
 )
@@ -263,7 +259,7 @@ val armSbc = ARMInstruction(
         perform { firstOperand - secondOperand - 1 + carry }
         setFlags {
             subOverflow()
-            dumbBorrow { firstOperand.toUInt().toULong() - secondOperand.toUInt().toULong() - 1uL + carry.toUInt().toULong() }
+            dumbBorrow { firstOperand.uLong - secondOperand.uLong - 1L + carry.uLong }
         }
     }
 )
@@ -274,7 +270,7 @@ val armRsc = ARMInstruction(
         perform { secondOperand - firstOperand - 1 + carry }
         setFlags {
             subOverflow(op1 = secondOperand, op2 = firstOperand)
-            dumbBorrow { secondOperand.toUInt().toULong() - firstOperand.toUInt().toULong() - 1uL + carry.toUInt().toULong() }
+            dumbBorrow { secondOperand.uLong - firstOperand.uLong - 1L + carry.uLong }
         }
     }
 )
@@ -285,7 +281,7 @@ val armCmp = ARMInstruction(
         performWithoutDestination { firstOperand - secondOperand }
         setFlags {
             subOverflow()
-            dumbBorrow { firstOperand.toUInt().toULong() - secondOperand.toUInt().toULong() }
+            dumbBorrow { firstOperand.uLong - secondOperand.uLong }
         }
     }
 )
@@ -296,7 +292,7 @@ val armCmn = ARMInstruction(
         performWithoutDestination { firstOperand + secondOperand }
         setFlags {
             overflow()
-            dumbCarry { firstOperand.toUInt().toULong() + secondOperand.toUInt().toULong() }
+            dumbCarry { firstOperand.uLong + secondOperand.uLong }
         }
     }
 )
