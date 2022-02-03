@@ -2,6 +2,7 @@ package spAnGB.ppu.mmio
 
 import spAnGB.memory.Memory
 import spAnGB.utils.hex
+import spAnGB.utils.uInt
 
 
 enum class DisplayStatFlag(val mask: Int) {
@@ -36,7 +37,7 @@ class DisplayStat: Memory {
 
     override fun write16(address: Int, value: Short) {
         flags = value.toInt() and 0xFF
-        lyc = value.toUShort().toInt().ushr(8).and(0xFF)
+        lyc = value.uInt.ushr(8).and(0xFF)
     }
 
     override fun write32(address: Int, value: Int) {

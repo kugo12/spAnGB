@@ -28,15 +28,7 @@ interface Memory {
 
 open class MemoryStub : Memory {
     private fun todo(address: Int, value: Int? = null) {
-        println("Memory stub: ${address.hex}" + (value?.let {
-            val b = ByteBuffer.allocate(4).run {
-                order(ByteOrder.LITTLE_ENDIAN)
-                putInt(value)
-                array().decodeToString()
-            }
-
-            " write ${value.hex} (" + b + ")"
-        } ?: ""))
+        println("Memory stub: ${address.hex}" + (value?.let { " write ${value.hex}" } ?: ""))
     }
 
     override fun read8(address: Int) = todo(address).let { 0.toByte() }

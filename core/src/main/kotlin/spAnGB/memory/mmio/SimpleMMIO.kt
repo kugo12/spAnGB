@@ -5,7 +5,7 @@ import spAnGB.utils.uInt
 
 abstract class SimpleMMIO(  // TODO: Remove this in future
     var value: Int = 0
-): Memory {
+) : Memory {
 
     override fun read8(address: Int): Byte {
         TODO("Not yet implemented")
@@ -26,5 +26,4 @@ abstract class SimpleMMIO(  // TODO: Remove this in future
     override fun write32(address: Int, value: Int) {
         this.value = value and 0xFFFF
     }
-
 }

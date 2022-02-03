@@ -11,4 +11,6 @@ dependencies {
 	api("io.github.libktx:ktx-scene2d:$ktxVersion")
 	api("io.github.libktx:ktx-actors:$ktxVersion")
 	api("com.kotcrab.vis:vis-ui:1.5.0") // TODO
+
+	testImplementation(kotlin("test"))
 }
