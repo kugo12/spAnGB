@@ -1,5 +1,6 @@
 package spAnGB.memory.mmio
 
+import spAnGB.hw.Timer
 import spAnGB.memory.Bus
 import spAnGB.memory.Memory
 
@@ -12,6 +13,8 @@ class MMIO(
     val ir = InterruptRequest()
     val ie = InterruptEnable()
     val halt = Halt()
+
+    val timers = Array(4) { Timer(ir) }
 
     override fun read8(address: Int) = get(address).read8(address)
     override fun read16(address: Int) = get(address).read16(address)
@@ -57,6 +60,11 @@ class MMIO(
             0xD4, 0xD6 -> bus.dma[3].source
             0xD8, 0xDA -> bus.dma[3].destination
             0xDC, 0xDE -> bus.dma[3]
+
+            0x100, 0x102 -> timers[0]
+            0x104, 0x106 -> timers[1]
+            0x108, 0x10A -> timers[2]
+            0x10C, 0x10E -> timers[3]
 
             0x130 -> keyInput
             0x200 -> ie

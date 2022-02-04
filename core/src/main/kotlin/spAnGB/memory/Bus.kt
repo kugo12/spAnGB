@@ -2,6 +2,7 @@
 
 package spAnGB.memory
 
+import spAnGB.Scheduler
 import spAnGB.memory.dma.DMA
 import spAnGB.memory.mmio.MMIO
 import spAnGB.ppu.PPU
@@ -13,6 +14,7 @@ class Bus(
     val bios: Bios = Bios("bios.bin"),
     @JvmField
     val cartridge: Cartridge,
+    val scheduler: Scheduler
 ): Memory {
     private val wram = RAM(256 * KiB)
     private val iwram = RAM(32 * KiB)
@@ -26,7 +28,7 @@ class Bus(
     @JvmField
     val mmio = MMIO(this)
 
-    val ppu = PPU(framebuffer, mmio)
+    val ppu = PPU(framebuffer, mmio, scheduler)
 
     // This cursed stuff is for inlining
     override fun read8(address: Int): Byte = get(address) { read8(address and 0x0FFFFFFF) }
@@ -57,9 +59,4 @@ class Bus(
             0xF -> cartridge.func()  // F - not used / SRAM mirror
             else -> throw IllegalStateException()
         }
-
-
-    inline fun tick() {
-        ppu.tick()
-    }
 }

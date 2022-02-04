@@ -1,5 +1,6 @@
 package spAnGB.ppu
 
+import spAnGB.Scheduler
 import spAnGB.memory.RAM
 import spAnGB.memory.mmio.Interrupt
 import spAnGB.memory.mmio.MMIO
@@ -9,8 +10,8 @@ import spAnGB.utils.bit
 import spAnGB.utils.toInt
 import java.nio.ByteBuffer
 
-const val HDRAW_CYCLES = 960
-const val HBLANK_CYCLES = 272
+const val HDRAW_CYCLES = 960L
+const val HBLANK_CYCLES = 272L
 const val SCANLINE_CYCLES = HDRAW_CYCLES + HBLANK_CYCLES
 
 const val VBLANK_HEIGHT = 68
@@ -19,7 +20,8 @@ const val TOTAL_HEIGHT = VBLANK_HEIGHT + VDRAW_HEIGHT
 
 class PPU(
     val framebuffer: ByteBuffer,
-    val mmio: MMIO
+    val mmio: MMIO,
+    val scheduler: Scheduler
 ) {
     val palette = RAM(1 * KiB)
     val vram = VRAM()
@@ -33,10 +35,9 @@ class PPU(
     val bgXOffset = Array(4) { BackgroundOffset() }
     val bgYOffset = Array(4) { BackgroundOffset() }
 
-    enum class PPUState { HDraw, HBlank, VBlank }
-
-    var state = PPUState.HDraw
-    var cyclesLeft = HDRAW_CYCLES
+    init {
+        scheduler.schedule(HDRAW_CYCLES, ::hdraw)
+    }
 
     fun Short.toColor() = ByteArray(3).apply {
         val c = toInt()
@@ -153,7 +154,7 @@ class PPU(
             val tileRowOffset = 0x10000 +
                     (if (verticalFlip) 7 - (yOffset % 8) else (yOffset % 8)) * rowSize +
                     tileNumber * tileSize +
-                    (yOffset / 8) * 32 * tileSize
+                    (if (verticalFlip) (height - yOffset)/8 else (yOffset / 8)) * 32 * tileSize
             val screenPixelOffset = if (x > 0) (lyc * 240 + x) * 3 else lyc * 240 * 3
             val pixelsLeft = if (x > 240 - width) 240 - x else if (x < 0) width + x else width
             val pixelsToSkipEnd = if (x > 240 - width) (240 - x) % 8 else 0
@@ -202,7 +203,7 @@ class PPU(
     fun renderSprites() {
         if (displayControl.isOneDimensionalMapping) TODO("One dimensional mapping not implemented rn")
 
-        (0 until 128).forEach {
+        (127 downTo 0).forEach {
             SpriteData(sprites[it]).apply {
                 if (shouldBeRendered()) render()
             }
@@ -351,67 +352,56 @@ class PPU(
         displayStat[DisplayStatFlag.VCOUNTER] = vc
     }
 
-    fun tick() {
-        if (cyclesLeft > 0) {
-            cyclesLeft -= 1
-            return
+    fun hdraw() {
+        renderBackDrop()
+
+        when (displayControl.bgMode) {
+            0 -> renderBgMode0()
+            3 -> renderBgMode3()
+            4 -> renderBgMode4()
+            else -> TODO("Background mode ${displayControl.bgMode} not implemented")
         }
 
-        when (state) {
-            PPUState.HDraw -> {
-                renderBackDrop()
+        renderSprites()
 
-                when (displayControl.bgMode) {
-                    0 -> renderBgMode0()
-                    3 -> renderBgMode3()
-                    4 -> renderBgMode4()
-                    else -> TODO("Background mode ${displayControl.bgMode} not implemented")
-                }
+        scheduler.schedule(HBLANK_CYCLES, ::hblank)
 
-                renderSprites()
-
-                state = PPUState.HBlank
-                cyclesLeft = HBLANK_CYCLES
-
-                displayStat[DisplayStatFlag.HBLANK] = true
-                if (displayStat[DisplayStatFlag.HBLANK_IRQ]) {
-                    mmio.ir[Interrupt.HBlank] = true
-                }
-            }
-            PPUState.HBlank -> {
-                vcount.ly += 1
-                checkVCounter()
-
-                if (vcount.ly >= VDRAW_HEIGHT) {
-                    state = PPUState.VBlank
-                    cyclesLeft = SCANLINE_CYCLES
-
-                    displayStat[DisplayStatFlag.HBLANK] = false
-                    displayStat[DisplayStatFlag.VBLANK] = true
-
-                    if (displayStat[DisplayStatFlag.VBLANK_IRQ]) {
-                        mmio.ir[Interrupt.VBlank] = true
-                    }
-                } else {
-                    state = PPUState.HDraw
-                    cyclesLeft = HDRAW_CYCLES
-                }
-            }
-            PPUState.VBlank -> {
-                vcount.ly += 1
-
-                if (vcount.ly >= TOTAL_HEIGHT) {
-                    state = PPUState.HDraw
-                    cyclesLeft = HDRAW_CYCLES
-
-                    displayStat[DisplayStatFlag.VBLANK] = false
-                    vcount.ly = 0
-                    checkVCounter()
-                } else {
-                    cyclesLeft = SCANLINE_CYCLES
-                    checkVCounter()
-                }
-            }
+        displayStat[DisplayStatFlag.HBLANK] = true
+        if (displayStat[DisplayStatFlag.HBLANK_IRQ]) {
+            mmio.ir[Interrupt.HBlank] = true
         }
+    }
+
+    fun hblank() {
+        vcount.ly += 1
+        checkVCounter()
+
+        if (vcount.ly >= VDRAW_HEIGHT) {
+            scheduler.schedule(SCANLINE_CYCLES, ::vblank)
+
+            displayStat[DisplayStatFlag.HBLANK] = false
+            displayStat[DisplayStatFlag.VBLANK] = true
+
+            if (displayStat[DisplayStatFlag.VBLANK_IRQ]) {
+                mmio.ir[Interrupt.VBlank] = true
+            }
+        } else {
+            scheduler.schedule(HDRAW_CYCLES, ::hdraw)
+        }
+    }
+
+    fun vblank() {
+        vcount.ly += 1
+
+        if (vcount.ly >= TOTAL_HEIGHT) {
+            scheduler.schedule(HDRAW_CYCLES, ::hdraw)
+
+            displayStat[DisplayStatFlag.VBLANK] = false
+            vcount.ly = 0
+        } else {
+            scheduler.schedule(SCANLINE_CYCLES, ::vblank)
+        }
+
+        checkVCounter()
     }
 }

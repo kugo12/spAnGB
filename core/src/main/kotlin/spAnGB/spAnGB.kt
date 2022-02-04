@@ -12,14 +12,16 @@ class spAnGB(
     framebuffer: ByteBuffer,
     rom: File = File("kirbynightmare.gba")
 ) {
+    val scheduler = Scheduler()
     val bus = Bus(
         framebuffer,
-        cartridge = Cartridge(rom)
+        cartridge = Cartridge(rom),
+        scheduler = scheduler
     )
     val cpu = CPU(bus)
 
     fun tick() {
         cpu.tick()
-        bus.tick()
+        scheduler.tick()
     }
 }
