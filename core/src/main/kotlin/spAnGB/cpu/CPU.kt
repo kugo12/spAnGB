@@ -8,6 +8,8 @@ import spAnGB.memory.Bus
 import spAnGB.utils.hex
 
 
+const val CLOCK_SPEED = 16777216
+
 fun undefinedThumbInstruction(op: Int) = ThumbInstruction(
     { "Undefined THUMB ${it.hex}" },
     { TODO("Undefined THUMB instruction ${op.hex}/${it.hex} @ ${pc.hex}") }
@@ -51,6 +53,8 @@ class CPU(
 
     @JvmField
     val ime = mmio.ime
+    @JvmField
+    val halt = mmio.halt
 
     inline var pc: Int
         get() = registers.content[15]
@@ -120,6 +124,7 @@ class CPU(
 
     fun tick() {
         handlePendingInterrupts()
+        if (halt.isHalted) return
 
         val op = pipeline.head
         if (op == 0) TODO("[CPU] OpCode 0 at +- ${pc.hex}")
@@ -226,6 +231,8 @@ class CPU(
 
                 pipeline.flush()
                 pipeline.armFill(this)
+
+                halt.isHalted = false
             }
         }
     }

@@ -1,11 +1,12 @@
 package spAnGB.memory.mmio
 
+import spAnGB.Scheduler
 import spAnGB.hw.Timer
 import spAnGB.memory.Bus
 import spAnGB.memory.Memory
 
 class MMIO(
-    val bus: Bus
+    val bus: Bus,
 ) : Memory {
     val keyInput = KeyInput()
 
@@ -14,7 +15,14 @@ class MMIO(
     val ie = InterruptEnable()
     val halt = Halt()
 
-    val timers = Array(4) { Timer(ir) }
+    val timers = run {
+        val t3 = Timer(ir, bus.scheduler, Interrupt.Timer3)
+        val t2 = Timer(ir, bus.scheduler, Interrupt.Timer2, t3::countUp)
+        val t1 = Timer(ir, bus.scheduler, Interrupt.Timer1, t2::countUp)
+        val t0 = Timer(ir, bus.scheduler, Interrupt.Timer0, t1::countUp)
+
+        arrayOf(t0, t1, t2, t3)
+    }
 
     override fun read8(address: Int) = get(address).read8(address)
     override fun read16(address: Int) = get(address).read16(address)

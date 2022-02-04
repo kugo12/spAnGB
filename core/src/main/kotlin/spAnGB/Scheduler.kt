@@ -8,18 +8,25 @@ class Scheduler {
     val tasks: MutableList<SchedulerTask> = ArrayDeque(64)
 
     fun schedule(after: Long, task: () -> Unit) {
-        tasks.add(Pair(counter + after, task))
+        val after = counter+after
+
+        tasks.forEachIndexed { index, t ->
+            if (after <= t.first) {
+                tasks.add(index, Pair(after, task))
+                return
+            }
+        }
+
+        tasks.add(Pair(after, task))
     }
 
+
     fun tick() {
-        tasks.listIterator().apply {
-            while (hasNext()) {
-                val item = next()
-                if (item.first <= counter) {
-                    item.second()
-                    remove()
-                }
-            }
+        var head = tasks.firstOrNull()
+        while (head != null && head.first <= counter) {
+            tasks.removeFirst()
+            head.second()
+            head = tasks.firstOrNull()
         }
 
         counter += 1  // TODO
