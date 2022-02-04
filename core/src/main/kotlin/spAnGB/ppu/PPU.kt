@@ -7,7 +7,7 @@ import spAnGB.memory.mmio.MMIO
 import spAnGB.ppu.mmio.*
 import spAnGB.utils.KiB
 import spAnGB.utils.bit
-import spAnGB.utils.toInt
+import spAnGB.utils.uInt
 import java.nio.ByteBuffer
 
 const val HDRAW_CYCLES = 960L
@@ -19,10 +19,11 @@ const val VDRAW_HEIGHT = 160
 const val TOTAL_HEIGHT = VBLANK_HEIGHT + VDRAW_HEIGHT
 
 class PPU(
-    val framebuffer: ByteBuffer,
+    framebuffer: ByteBuffer,
     val mmio: MMIO,
     val scheduler: Scheduler
 ) {
+    val framebuffer = framebuffer.asIntBuffer()
     val palette = RAM(1 * KiB)
     val vram = VRAM()
     val attributes = RAM(1 * KiB)
@@ -39,25 +40,18 @@ class PPU(
         scheduler.schedule(HDRAW_CYCLES, ::hdraw)
     }
 
-    fun Short.toColor() = ByteArray(3).apply {
-        val c = toInt()
-        set(0, c.and(0x1F).shl(3).toByte())
-        set(1, c.ushr(5).and(0x1F).shl(3).toByte())
-        set(2, c.ushr(10).and(0x1F).shl(3).toByte())
+    fun Short.toColor() = toInt().let {
+        it.and(0x1F).shl(27)  // R
+            .or(it.and(0x3E0).shl(14))  // G
+            .or(it.and(0x7C00).shl(1))  // B
+            .or(0xFF)  // A
     }
 
     fun Short.putToBuffer(at: Int) {
-        val c = toInt()
-
-        framebuffer.put(at, c.and(0x1F).shl(3).toByte())
-        framebuffer.put(at + 1, c.ushr(5).and(0x1F).shl(3).toByte())
-        framebuffer.put(at + 2, c.ushr(10).and(0x1F).shl(3).toByte())
-    }
-
-    fun putToBuffer(pos: Int, color: ByteArray) {
-        framebuffer.put(pos, color[0])
-        framebuffer.put(pos + 1, color[1])
-        framebuffer.put(pos + 2, color[2])
+        framebuffer.put(
+            at,
+            toColor()
+        )
     }
 
     fun renderBgMode4() {
@@ -65,7 +59,7 @@ class PPU(
 
         (offset until offset + 240).forEach {
             palette.shortBuffer[vram.byteBuffer[it].toInt() and 0xFF]
-                .putToBuffer(it * 3)
+                .putToBuffer(it)
         }
     }
 
@@ -74,7 +68,7 @@ class PPU(
 
         (offset until offset + 240).forEach {
             vram.shortBuffer[it ushr 1]
-                .putToBuffer(it * 3)
+                .putToBuffer(it)
         }
     }
 
@@ -91,7 +85,7 @@ class PPU(
         val color = palette.shortBuffer[0].toColor()
 
         for (it in offset until offset + 240) {
-            putToBuffer(it * 3, color)
+            framebuffer.put(it, color)
         }
     }
 
@@ -155,7 +149,7 @@ class PPU(
                     (if (verticalFlip) 7 - (yOffset % 8) else (yOffset % 8)) * rowSize +
                     tileNumber * tileSize +
                     (if (verticalFlip) (height - yOffset)/8 else (yOffset / 8)) * 32 * tileSize
-            val screenPixelOffset = if (x > 0) (lyc * 240 + x) * 3 else lyc * 240 * 3
+            val screenPixelOffset = if (x > 0) (lyc * 240 + x) else lyc * 240
             val pixelsLeft = if (x > 240 - width) 240 - x else if (x < 0) width + x else width
             val pixelsToSkipEnd = if (x > 240 - width) (240 - x) % 8 else 0
             val pixelsToSkipStart = if (x < 0) -x else 0
@@ -237,7 +231,7 @@ class PPU(
                 val bgXOffset = bgXOffset[bg].offset
 
                 // tiles are 8x8
-                val screenRowOffset = vcount.ly * 240 * 3
+                val screenRowOffset = vcount.ly * 240
 
                 var currentPixel = 0
 
@@ -260,7 +254,7 @@ class PPU(
 
                             if (color != 0)
                                 palette.shortBuffer[color]
-                                    .putToBuffer(screenRowOffset + currentPixel * 3)
+                                    .putToBuffer(screenRowOffset + currentPixel)
                             currentPixel += 1
                             if (currentPixel >= 240) return@forEach
                         }
@@ -334,7 +328,7 @@ class PPU(
 
             if (color != 0)
                 palette.shortBuffer[color + paletteOffset]
-                    .putToBuffer(screenOffset + (x + currentPixelX) * 3)
+                    .putToBuffer(screenOffset + x + currentPixelX)
 
             x += 1
         }

@@ -59,7 +59,7 @@ class FirstScreen : KtxScreen {
 }
 
 class BasicFramebufferActor: Actor() {
-    private val pixmap = Pixmap(240, 160, Pixmap.Format.RGB888)
+    private val pixmap = Pixmap(240, 160, Pixmap.Format.RGBA8888)
     val framebuffer: ByteBuffer = pixmap.pixels
 
     private val texture = Texture(pixmap)
