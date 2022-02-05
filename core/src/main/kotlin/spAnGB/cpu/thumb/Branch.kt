@@ -12,7 +12,7 @@ val thumbConditionalBranch = ThumbInstruction(
         if (checkCondition(instr.ushr(8).and(0xF))) {
             val offset = instr.and(0xFF).toByte().toInt().shl(1)
             pc += offset
-            pipeline.thumbRefill(this)
+            thumbRefill()
         }
     }
 )
@@ -23,7 +23,7 @@ val thumbBranch = ThumbInstruction(
         val offset = instr.and(0x7FF).shl(5).toShort().toInt().shr(4)
         pc += offset
 
-        pipeline.thumbRefill(this)
+        thumbRefill()
     }
 )
 
@@ -37,7 +37,7 @@ val thumbLongBranchLink = ThumbInstruction(
             lr = pc.minus(2).or(1)
             pc = to
 
-            pipeline.thumbRefill(this)
+            thumbRefill()
         } else {  // high
             val offset = instr.and(0x7FF).shl(5).toShort().toInt()
             lr = pc + offset.shl(7)

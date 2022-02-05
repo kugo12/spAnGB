@@ -87,7 +87,7 @@ class CPUInstructionWindow(val cpu: CPU) : VisWindow("CPU Instructions"), KTable
     }
 
     fun addToHistory() {
-        val description = cpu.pipeline.head.let {
+        val description = cpu.pipelineHead.let {
             (if (cpu.state == CPUState.THUMB) getThumb(it) else getArm(it))
                 .description(cpu, it)
         }
@@ -102,7 +102,7 @@ class CPUInstructionWindow(val cpu: CPU) : VisWindow("CPU Instructions"), KTable
         super.act(delta)
 
         pipeline.forEachIndexed { index, label ->
-            val description = cpu.pipeline.content[index].let {
+            val description = cpu.pipeline[index].let {
                 (if (cpu.state == CPUState.THUMB) getThumb(it) else getArm(it))
                     .description(cpu, it)
             }

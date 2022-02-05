@@ -25,7 +25,7 @@ val armB = ARMInstruction(
     { "b ${pc.hex} + ${extendOffset(it)} = ${(pc+extendOffset(it)).hex}" },
     {
         pc += extendOffset(it)
-        pipeline.armRefill(this)
+        armRefill()
     }
 )
 
@@ -34,7 +34,7 @@ val armBl = ARMInstruction(
     {
         lr = pc - 4
         pc += extendOffset(it)
-        pipeline.armRefill(this)
+        armRefill()
     }
 )
 
@@ -50,7 +50,7 @@ val armSwi = ARMInstruction(
         spsr = cpsr
 
         this[CPUFlag.I] = true
-        pipeline.armRefill(this)
+        armRefill()
     }
 )
 

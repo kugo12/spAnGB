@@ -1,24 +1,32 @@
 package spAnGB.hw
 
 import spAnGB.Scheduler
+import spAnGB.SchedulerTask
 import spAnGB.memory.Memory
 import spAnGB.memory.mmio.Interrupt
 import spAnGB.memory.mmio.InterruptRequest
 import spAnGB.utils.bit
-import spAnGB.utils.hex
 import spAnGB.utils.uInt
 
+@JvmField
 val prescalerLut = longArrayOf(1, 64, 256, 1024)
 
 class Timer(
+    @JvmField
     val ir: InterruptRequest,
+    @JvmField
     val scheduler: Scheduler,
+    @JvmField
     val interrupt: Interrupt,
+    @JvmField
     val incrementNextTimer: (() -> Unit)? = null
 ) : Memory {
+    @JvmField
     var counter = 0
 
+    @JvmField
     var control = 0
+    @JvmField
     var reload = 0
 
     inline val isCountUp get() = control bit 2
@@ -26,7 +34,10 @@ class Timer(
     inline val isIrqEnabled get() = control bit 6
     inline val isEnabled get() = control bit 7
 
+    @JvmField
     var isRunning = false
+
+    private val tickTask: SchedulerTask = ::tick
 
     override fun read8(address: Int): Byte {
         TODO("Not yet implemented")
@@ -61,7 +72,7 @@ class Timer(
 
                 if (!isRunning && !isCountUp) {
                     isRunning = true
-                    scheduler.schedule(nextTick, ::tick)
+                    scheduler.schedule(nextTick, tickTask)
                 }
             }
         } else {
@@ -88,11 +99,12 @@ class Timer(
         }
     }
 
-    fun tick() {
+    private inline fun tick(taskIndex: Int) {
         if (isEnabled && !isCountUp) {
             increment()
-            scheduler.schedule(nextTick, ::tick)
+            scheduler.schedule(nextTick, tickTask, taskIndex)
         } else {
+            scheduler.clear(taskIndex)
             isRunning = false
         }
     }

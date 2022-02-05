@@ -10,16 +10,6 @@ import spAnGB.utils.hex
 
 const val CLOCK_SPEED = 16777216
 
-fun undefinedThumbInstruction(op: Int) = ThumbInstruction(
-    { "Undefined THUMB ${it.hex}" },
-    { TODO("Undefined THUMB instruction ${op.hex}/${it.hex} @ ${pc.hex}") }
-)
-
-fun undefinedArmInstruction(op: Int) = ARMInstruction(
-    { "Undefined ARM ${it.hex}" },
-    { TODO("Undefined ARM instruction ${op.hex}/${it.hex} @ ${pc.hex}") }
-)
-
 class CPU(
     b: Bus
 ) {
@@ -43,6 +33,11 @@ class CPU(
     var fastIrqSpsr: Int = 0
     @JvmField
     val _registers = IntArray(7)
+
+    @JvmField
+    val pipeline = IntArray(3)
+
+    inline val pipelineHead: Int get() = pipeline[2]
 
     @JvmField
     var cpsr: Int = 0
@@ -72,7 +67,6 @@ class CPU(
 
     var state = CPUState.ARM
     var mode = CPUMode.System
-    val pipeline = Pipeline()
 
     @JvmField
     val lutARM = Array(4096) { ARMOpFactory(it).execute }
@@ -88,16 +82,16 @@ class CPU(
         registerBanks[CPUMode.Interrupt][0] = 0x3007FA0
         cpsr = 0x6000001F
 
-        pipeline.armFill(this)
+        armFill()
     }
 
     inline operator fun Registers.set(index: Int, value: Int) {
         content[index] = value
         if (index == 15) {
             if (state == CPUState.ARM) {
-                pipeline.armRefill(this@CPU)
+                armRefill()
             } else {
-                pipeline.thumbRefill(this@CPU)
+                thumbRefill()
             }
         }
     }
@@ -126,7 +120,7 @@ class CPU(
         handlePendingInterrupts()
         if (halt.isHalted) return
 
-        val op = pipeline.head
+        val op = pipelineHead
         if (op == 0) TODO("[CPU] OpCode 0 at +- ${pc.hex}")
 
         if (state == CPUState.THUMB) {
@@ -136,9 +130,9 @@ class CPU(
         }
 
         if (state == CPUState.ARM) {
-            pipeline.armStep(this)
+            armStep()
         } else {
-            pipeline.thumbStep(this)
+            thumbStep()
         }
     }
 
@@ -147,8 +141,8 @@ class CPU(
         this[CPUFlag.T] = state == CPUState.THUMB
 
         when (state) {
-            CPUState.ARM -> pipeline.armRefill(this)
-            CPUState.THUMB -> pipeline.thumbRefill(this)
+            CPUState.ARM -> armRefill()
+            CPUState.THUMB -> thumbRefill()
         }
     }
 
@@ -229,11 +223,53 @@ class CPU(
                 this[CPUFlag.T] = false
                 state = CPUState.ARM
 
-                pipeline.flush()
-                pipeline.armFill(this)
+                flush()
+                armFill()
 
                 halt.isHalted = false
             }
         }
+    }
+
+    fun flush() {
+        pipeline[0] = 0
+        pipeline[1] = 0
+        pipeline[2] = 0
+    }
+
+    fun thumbRefill() {
+        pc = pc and (1.inv())
+        pipeline[1] = bus.read16(pc).toInt()
+        pc += 2
+        pipeline[0] = bus.read16(pc).toInt()
+    }
+
+    fun thumbStep() {
+        pipeline[2] = pipeline[1]
+        pipeline[1] = pipeline[0]
+        pc += 2
+        pipeline[0] = bus.read16(pc).toInt()
+    }
+
+    fun armFill() {
+        pipeline[2] = bus.read32(pc)
+        pc += 4
+        pipeline[1] = bus.read32(pc)
+        pc += 4
+        pipeline[0] = bus.read32(pc)
+    }
+
+    fun armRefill() {
+        pc = pc and (3.inv())
+        pipeline[1] = bus.read32(pc)
+        pc += 4
+        pipeline[0] = bus.read32(pc)
+    }
+
+    fun armStep() {
+        pipeline[2] = pipeline[1]
+        pipeline[1] = pipeline[0]
+        pc += 4
+        pipeline[0] = bus.read32(pc)
     }
 }

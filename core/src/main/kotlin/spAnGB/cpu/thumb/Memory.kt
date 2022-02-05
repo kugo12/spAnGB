@@ -180,7 +180,7 @@ val thumbPop = ThumbInstruction(
             pc = bus.read32(registers[13] + spUpdate)
             spUpdate += 4
 
-            pipeline.thumbRefill(this)
+            thumbRefill()
         }
 
         registers[13] += spUpdate

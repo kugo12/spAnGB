@@ -1,8 +1,7 @@
 package spAnGB.memory
 
 import spAnGB.utils.hex
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
+import spAnGB.utils.uLong
 
 interface Memory {
     fun read8(address: Int): Byte
@@ -15,7 +14,7 @@ interface Memory {
 
     companion object {
         val stub: Memory = MemoryStub()
-        val silentStub = object: Memory {
+        val silentStub = object : Memory {
             override fun read8(address: Int): Byte = 0
             override fun read16(address: Int): Short = 0
             override fun read32(address: Int): Int = 0
@@ -27,14 +26,14 @@ interface Memory {
 }
 
 open class MemoryStub : Memory {
-    private fun todo(address: Int, value: Int? = null) {
-        println("Memory stub: ${address.hex}" + (value?.let { " write ${value.hex}" } ?: ""))
+    private fun todo(address: Int, value: Long) {
+        println("Memory stub: ${address.hex}" + (if (value != -1L) " write ${value.toInt().hex}" else ""))
     }
 
-    override fun read8(address: Int) = todo(address).let { 0.toByte() }
-    override fun read16(address: Int) = todo(address).let { 0.toShort() }
-    override fun read32(address: Int) = todo(address).let { 0 }
-    override fun write8(address: Int, value: Byte) = todo(address, value.toInt())
-    override fun write16(address: Int, value: Short) = todo(address, value.toInt())
-    override fun write32(address: Int, value: Int) = todo(address, value)
+    override fun read8(address: Int) = todo(address, -1L).let { 0.toByte() }
+    override fun read16(address: Int) = todo(address, -1L).let { 0.toShort() }
+    override fun read32(address: Int) = todo(address, -1L).let { 0 }
+    override fun write8(address: Int, value: Byte) = todo(address, value.uLong)
+    override fun write16(address: Int, value: Short) = todo(address, value.uLong)
+    override fun write32(address: Int, value: Int) = todo(address, value.uLong)
 }

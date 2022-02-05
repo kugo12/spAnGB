@@ -1,32 +1,48 @@
 package spAnGB
 
-typealias SchedulerTask = Pair<Long, () -> Unit>
+typealias SchedulerTask = (Int) -> Unit
+
+const val taskQueueSize = 16
 
 class Scheduler {
     private var counter = 0L
 
-    val tasks: MutableList<SchedulerTask> = ArrayDeque(64)
+    val taskCounters: LongArray = LongArray(taskQueueSize) { -1L }
+    val tasks: Array<SchedulerTask?> = arrayOfNulls(taskQueueSize)
 
-    fun schedule(after: Long, task: () -> Unit) {
-        val after = counter+after
+    fun schedule(after: Long, task: SchedulerTask?, index: Int) {
+        taskCounters[index] = counter + after
+        tasks[index] = task
+    }
 
-        tasks.forEachIndexed { index, t ->
-            if (after <= t.first) {
-                tasks.add(index, Pair(after, task))
+    fun clear(index: Int) {
+        tasks[index] = null
+        taskCounters[index] = -1
+    }
+
+    fun schedule(after: Long, task: SchedulerTask?) {
+        val after = counter + after
+
+        var index = 0
+        while (true)
+            if (taskCounters[index] == -1L) { // this throws if queue is too small
+                taskCounters[index] = after
+                tasks[index] = task
+
                 return
-            }
-        }
-
-        tasks.add(Pair(after, task))
+            } else ++index
     }
 
 
     fun tick() {
-        var head = tasks.firstOrNull()
-        while (head != null && head.first <= counter) {
-            tasks.removeFirst()
-            head.second()
-            head = tasks.firstOrNull()
+        var index = 0
+        while (index < taskQueueSize) {
+            val taskCounter = taskCounters[index]
+            when {
+                taskCounter == -1L -> break
+                taskCounter <= counter -> tasks[index]!!(index)
+            }
+            ++index
         }
 
         counter += 1  // TODO

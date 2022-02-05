@@ -1,9 +1,9 @@
 package spAnGB.memory.mmio
 
-import spAnGB.Scheduler
 import spAnGB.hw.Timer
 import spAnGB.memory.Bus
 import spAnGB.memory.Memory
+import spAnGB.utils.uInt
 
 class MMIO(
     val bus: Bus,
@@ -27,8 +27,8 @@ class MMIO(
     override fun read8(address: Int) = get(address).read8(address)
     override fun read16(address: Int) = get(address).read16(address)
     override fun read32(address: Int) =
-        read16(address).toUShort().toInt().or(
-            read16(address + 2).toUShort().toInt().shl(16)
+        read16(address).uInt.or(
+            read16(address + 2).uInt.shl(16)
         )
 
     override fun write8(address: Int, value: Byte) = get(address).write8(address, value)
