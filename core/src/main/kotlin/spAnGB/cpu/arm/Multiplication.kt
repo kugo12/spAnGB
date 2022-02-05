@@ -21,7 +21,7 @@ val armMulMla = ARMInstruction(
         val rs = registers[(instr ushr 8) and 0xF]
         val rm = registers[instr and 0xF]
         val result = rm * rs + rn
-        registers[destination] = result
+        setRegister(destination, result)
 
         if (instr bit 20) {
             this[CPUFlag.C] = false
@@ -44,8 +44,8 @@ val armUmullUmlal = ARMInstruction(
         val rm = registers[instr and 0xF].uLong
         val rs = registers[(instr ushr 8) and 0xF].uLong
         val result = rm * rs + rn
-        registers[rdLow] = result.toInt()
-        registers[rdHigh] = (result shr 32).toInt()
+        setRegister(rdLow, result.toInt())
+        setRegister(rdHigh, (result shr 32).toInt())
 
         if (instr bit 20) {
             this[CPUFlag.Z] = result == 0L
@@ -67,8 +67,8 @@ val armSmullSmlal = ARMInstruction(
         val rm = registers[instr and 0xF].toLong()
         val rs = registers[(instr ushr 8) and 0xF].toLong()
         val result = rm * rs + rn
-        registers[rdLow] = result.toInt()
-        registers[rdHigh] = result.ushr(32).toInt()
+        setRegister(rdLow, result.toInt())
+        setRegister(rdHigh, (result ushr 32).toInt())
 
         if (instr bit 20) {
             this[CPUFlag.Z] = result == 0L

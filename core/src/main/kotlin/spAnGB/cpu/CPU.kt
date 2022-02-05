@@ -16,14 +16,9 @@ class CPU(
     @JvmField
     val bus: Bus = b
 
-    @JvmInline
-    value class Registers(val content: IntArray = IntArray(16)) {
-        inline operator fun get(index: Int): Int = content[index]
-    }
-
     val mmio = bus.mmio
 
-    val registers = Registers()
+    val registers = IntArray(16)
 
     @JvmField
     val registerBanks = Array(4) { IntArray(3) }
@@ -52,12 +47,12 @@ class CPU(
     val halt = mmio.halt
 
     inline var pc: Int
-        get() = registers.content[15]
-        set(value) { registers.content[15] = value }
+        get() = registers[15]
+        set(value) { registers[15] = value }
 
     inline var lr: Int
-        get() = registers.content[14]
-        set(value) { registers.content[14] = value }
+        get() = registers[14]
+        set(value) { registers[14] = value }
 
     inline operator fun get(flag: CPUFlag): Boolean = (cpsr and flag.mask) != 0
     inline operator fun set(flag: CPUFlag, value: Boolean) {
@@ -85,8 +80,8 @@ class CPU(
         armFill()
     }
 
-    inline operator fun Registers.set(index: Int, value: Int) {
-        content[index] = value
+    inline fun setRegister(index: Int, value: Int) {
+        registers[index] = value
         if (index == 15) {
             if (state == CPUState.ARM) {
                 armRefill()
@@ -95,6 +90,7 @@ class CPU(
             }
         }
     }
+
 
     fun checkCondition(op: Int): Boolean = when (op) {
         0x0 -> this[CPUFlag.Z]
@@ -150,20 +146,20 @@ class CPU(
         if (mode != value) {
             when (mode) {  // save state
                 CPUMode.User, CPUMode.System -> {
-                    registers.content.copyInto(
+                    registers.copyInto(
                         _registers,
                         0, 8, 15
                     )
                 }
                 CPUMode.FastInterrupt -> {
-                    registers.content.copyInto(
+                    registers.copyInto(
                         fastIrqRegisters,
                         0, 8, 15
                     )
                     fastIrqSpsr = spsr
                 }
                 else -> {
-                    registers.content.copyInto(
+                    registers.copyInto(
                         _registers,
                         0, 8, 13
                     )
@@ -176,7 +172,7 @@ class CPU(
             when (value) {  // restore state
                 CPUMode.User, CPUMode.System -> {
                     _registers.copyInto(
-                        registers.content,
+                        registers,
                         8, 0, 7
                     )
 
@@ -184,14 +180,14 @@ class CPU(
                 }
                 CPUMode.FastInterrupt -> {
                     fastIrqRegisters.copyInto(
-                        registers.content,
+                        registers,
                         8, 0, 7
                     )
                     spsr = fastIrqSpsr
                 }
                 else -> {
                     _registers.copyInto(
-                        registers.content,
+                        registers,
                         8, 0, 5
                     )
 
@@ -201,7 +197,7 @@ class CPU(
                 }
             }
 
-            cpsr = (cpsr and 0xFFFFFFE0u.toInt()) or value.mask
+            cpsr = (cpsr and 0x1F.inv()) or value.mask
             mode = value
         }
     }

@@ -4,11 +4,12 @@ import spAnGB.cpu.ARMInstruction
 import spAnGB.cpu.CPU
 import spAnGB.cpu.CPUMode
 import spAnGB.utils.bit
-import spAnGB.utils.hex
 import spAnGB.utils.uInt
 
 class MemoryAccessDsl(
+    @JvmField
     val cpu: CPU,
+    @JvmField
     val instruction: Int,
     offsetCalc: CPU.(Int) -> Int = {
         when (instruction bit 25) {
@@ -17,21 +18,30 @@ class MemoryAccessDsl(
         }
     }
 ) {
+    @JvmField
     val offset = offsetCalc(cpu, instruction)
+
+    @JvmField
     val base = (instruction ushr 16) and 0xF
 
+    @JvmField
     val addressWithOffset = when (instruction bit 23) {
         true -> cpu.registers[base] + offset
         false -> cpu.registers[base] - offset
     }
 
+    @JvmField
     val srcOrDst = (instruction ushr 12) and 0xF
+
+    @JvmField
     val pre = instruction bit 24
+
+    @JvmField
     val address = if (pre) addressWithOffset else cpu.registers[base]
 
     inline fun CPU.saveAddressWithOffsetIfEnabled() {
         if ((pre && instruction bit 21) || !pre)
-            registers[base] = addressWithOffset
+            setRegister(base, addressWithOffset)
     }
 
     inline fun perform(func: CPU.() -> Unit) {
@@ -65,13 +75,16 @@ val armSwp = ARMInstruction(
 
         when (instr bit 22) {
             true -> {  // byte
-                registers[dest] = bus.read8(rn).uInt
+                setRegister(dest, bus.read8(rn).uInt)
                 bus.write8(rn, rm.toByte())
             }
             false -> {  // word
-                registers[dest] = bus
-                    .read32(rn)
-                    .rotateRight((rn and 3) shl 3)
+                setRegister(
+                    dest,
+                    bus
+                        .read32(rn)
+                        .rotateRight((rn and 3) shl 3)
+                )
                 bus.write32(rn, rm)
             }
         }
@@ -87,7 +100,7 @@ val armLdr = ARMInstruction(
                 false -> bus.read32(address).rotateRight((address and 3) shl 3)
             }
             saveAddressWithOffsetIfEnabled()
-            registers[srcOrDst] = value
+            setRegister(srcOrDst, value)
         }
     }
 )
@@ -116,7 +129,7 @@ val armStr = ARMInstruction(
 
             pc -= 4
             if (instr bit 21) {
-                registers[base] = addr
+                setRegister(base, addr)
             }
         } else {
             when (instr bit 22) {
@@ -125,7 +138,7 @@ val armStr = ARMInstruction(
             }
 
             pc -= 4
-            registers[base] = addr
+            setRegister(base, addr)
         }
     }
 )
@@ -142,7 +155,7 @@ val armLdrhsb = ARMInstruction(
                 else -> throw IllegalStateException("Unreachable")
             }
             saveAddressWithOffsetIfEnabled()
-            registers[srcOrDst] = value
+            setRegister(srcOrDst, value)
         }
     }
 )
@@ -175,7 +188,7 @@ val armStrhsb = ARMInstruction(
 
         pc -= 4
         if ((pre && instr bit 21) || !pre)
-            registers[base] = addressWithOffset
+            setRegister(base, addressWithOffset)
     }
 )
 
@@ -251,7 +264,7 @@ val armStm = ARMInstruction(
 
             if (baseInRegList != null && first != base)
                 bus.write32(baseInRegList!!, addr)
-            registers[base] = addr
+            setRegister(base, addr)
         }
 
     }
@@ -287,14 +300,14 @@ val armLdm = ARMInstruction(
         }
 
         if (regs.isEmpty()) {
-            registers[15] = bus.read32(addr)
+            setRegister(15, bus.read32(addr))
             when (up) {
                 true -> addr += 0x40
                 false -> addr -= 0x40
             }
         } else {
             regs.forEach {
-                registers[it] = bus.read32(addr)
+                setRegister(it, bus.read32(addr))
                 if (it == base) {
                     baseInRegList = addr
                 }
@@ -317,7 +330,7 @@ val armLdm = ARMInstruction(
             }
 
             if (baseInRegList == null) {
-                registers[base] = addr
+                setRegister(base, addr)
             }
         }
     }

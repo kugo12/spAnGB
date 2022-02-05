@@ -25,7 +25,7 @@ val thumbHiLoMov = ThumbInstruction(
     { instr ->
         val op = getOperands(instr)
 
-        registers[op.destinationLocation] = op.second
+        setRegister(op.destinationLocation, op.second)
     }
 )
 
@@ -34,7 +34,7 @@ val thumbHiLoAdd = ThumbInstruction(
     { instr ->
         val op = getOperands(instr)
 
-        registers[op.destinationLocation] = op.first + op.second
+        setRegister(op.destinationLocation, op.first + op.second)
     }
 )
 

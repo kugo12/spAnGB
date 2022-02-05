@@ -49,28 +49,25 @@ class PPU(
             .or(0xFF)  // A
     }
 
-    fun Short.putToBuffer(at: Int) {
-        framebuffer.put(
-            at,
-            toColor()
-        )
-    }
-
     fun renderBgMode4() {
         val offset = vcount.ly * 240
+        val buffer = priorityBuffers[0]
 
-        (offset until offset + 240).forEach {
-            palette.shortBuffer[vram.byteBuffer[it].toInt() and 0xFF]
-                .putToBuffer(it)
+        (0 until 240).forEach {
+            val color = palette.shortBuffer[
+                    vram.byteBuffer[it + offset].uInt
+            ].toColor()
+
+            buffer[it] = color
         }
     }
 
     fun renderBgMode3() {
         val offset = vcount.ly * 240
+        val buffer = priorityBuffers[0]
 
-        (offset until offset + 240).forEach {
-            vram.shortBuffer[it ushr 1]
-                .putToBuffer(it)
+        (0 until 240).forEach {
+            buffer[it] = vram.shortBuffer[it + offset].toColor()
         }
     }
 
@@ -258,31 +255,7 @@ class PPU(
                 var currentPixel = 0
 
                 if (control.isSinglePalette) {
-                    val yOffset = (vcount.ly / 8) * 32 // TODO
-                    val yTileOffset = vcount.ly % 8
-                    val bgTileSize = 64
-                    val rowSize = 8
-
-                    while (true) {
-                        val tileEntryOffset = yOffset + (currentPixel / 8) + mapOffset
-                        val entry = BackgroundTextTile(vram.shortBuffer[tileEntryOffset].toInt())
-
-                        val tileRowOffset = tileMapOffset +
-                                entry.tileNumber * bgTileSize +
-                                (if (entry.verticalFlip) 7 - yTileOffset else yTileOffset) * rowSize
-
-                        for (it in (if (entry.horizontalFlip) 7 downTo 0 else 0 until 8)) {
-                            val color = vram.byteBuffer[tileRowOffset + it].toInt()
-
-                            if (color != 0)
-                                palette.shortBuffer[color]
-                                    .putToBuffer(screenRowOffset + currentPixel)
-                            currentPixel += 1
-                            if (currentPixel >= 240) return@forEach
-                        }
-
-                        TODO()
-                    }
+                    TODO()
                 } else {
                     val bgTileSize = 32
                     val rowSize = 4

@@ -9,36 +9,42 @@ import spAnGB.utils.toInt
 import spAnGB.utils.uLong
 
 
-class DataProcessingDsl(val cpu: CPU, val instruction: Int) {
+class DataProcessingDsl(
+    @JvmField
+    val cpu: CPU,
+    @JvmField
+    val instruction: Int
+) {
+    @JvmField
     val firstOperand: Int
-    val secondOperand: Int
-    val destinationRegister: Int = (instruction ushr 12) and 0xF
-    var result: Int = 0
-
-
-    init {
-        secondOperand = when {
-            !(instruction bit 25) && instruction bit 4 -> {
-                cpu.pc += 4
-                val tmp = cpu.operand(instruction ushr 4, cpu.registers[instruction and 0xF])
-                firstOperand = cpu.registers[(instruction ushr 16) and 0xF]
-                cpu.pc -= 4
-                tmp
-            }
-            instruction bit 25 -> {
-                firstOperand = cpu.registers[(instruction ushr 16) and 0xF]
-                cpu.barrelShifterRotateRight(instruction and 0xFF, (instruction and 0xF00) ushr 7)
-            }
-            else -> {
-                firstOperand = cpu.registers[(instruction ushr 16) and 0xF]
-                cpu.operand(instruction ushr 4, cpu.registers[instruction and 0xF])
-            }
+    @JvmField
+    val secondOperand: Int = when {
+        !(instruction bit 25) && instruction bit 4 -> {
+            cpu.pc += 4
+            val tmp = cpu.operand(instruction ushr 4, cpu.registers[instruction and 0xF])
+            firstOperand = cpu.registers[(instruction ushr 16) and 0xF]
+            cpu.pc -= 4
+            tmp
+        }
+        instruction bit 25 -> {
+            firstOperand = cpu.registers[(instruction ushr 16) and 0xF]
+            cpu.barrelShifterRotateRight(instruction and 0xFF, (instruction and 0xF00) ushr 7)
+        }
+        else -> {
+            firstOperand = cpu.registers[(instruction ushr 16) and 0xF]
+            cpu.operand(instruction ushr 4, cpu.registers[instruction and 0xF])
         }
     }
 
+    @JvmField
+    val destinationRegister: Int = (instruction ushr 12) and 0xF
+    @JvmField
+    var result: Int = 0
+
+
     inline fun perform(func: DataProcessingDsl.() -> Int) {
         result = func()
-        cpu.apply { registers[destinationRegister] = result }
+        cpu.setRegister(destinationRegister, result)
     }
 
     inline fun performWithoutDestination(func: DataProcessingDsl.() -> Int) {
@@ -181,9 +187,7 @@ val armMov = ARMInstruction(
             if (checkDestinationPC()) return@instruction
         }
 
-        cpu.apply {
-            registers[destinationRegister] = result
-        }
+        cpu.setRegister(destinationRegister,  result)
     }
 )
 
@@ -214,9 +218,7 @@ val armSub = ARMInstruction(
             if (checkDestinationPC()) return@instruction
         }
 
-        cpu.apply {
-            registers[destinationRegister] = result
-        }
+        cpu.setRegister(destinationRegister, result)
     }
 )
 

@@ -14,16 +14,20 @@ import spAnGB.utils.toInt
 import spAnGB.utils.uLong
 
 class DataProcessingDsl(val cpu: CPU, instruction: Int) {
+    @JvmField
     val operand: Int = cpu.registers[(instruction ushr 3) and 0x7]
+    @JvmField
     val destinationRegister: Int = instruction and 0x7
+    @JvmField
     var result: Int = 0
 
+    @JvmField
     val dest = cpu.registers[destinationRegister]
 
     inline var destination: Int
         get() = dest
         set(value) {
-            cpu.apply { registers[destinationRegister] = value }
+            cpu.registers[destinationRegister] = value
         }
 
     inline fun perform(func: DataProcessingDsl.() -> Int) {

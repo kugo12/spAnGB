@@ -227,7 +227,7 @@ val thumbLdmia = ThumbInstruction(
         val address = registers[rb]
 
         if (instr and 0xFF == 0) {
-            registers[15] = bus.read32(address)
+            setRegister(15, bus.read32(address))
             update += 0x40
         } else {
             (0..7).forEach {
