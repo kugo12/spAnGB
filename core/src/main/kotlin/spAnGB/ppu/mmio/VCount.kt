@@ -3,6 +3,7 @@ package spAnGB.ppu.mmio
 import spAnGB.memory.Memory
 
 class VCount: Memory {  // Read only
+    @JvmField
     var ly = 0
 
     override fun read8(address: Int): Byte = ly.toByte()

@@ -7,7 +7,7 @@ import spAnGB.utils.uInt
 
 val thumbLdrPcrelImm = ThumbInstruction(
     { "LdrPcrelImm" },
-    { instr ->
+    {
         val immediate = instr.and(0xFF).shl(2)
         val address = pc.and(3.inv()) + immediate
         registers[(instr ushr 8) and 0x7] = bus.read32(address).rotateRight(address.and(0x3).shl(3))
@@ -19,7 +19,7 @@ private inline fun CPU.getAddress(instr: Int): Int =
 
 val thumbLdrStrRegOff = ThumbInstruction(
     { "LdrStrRegOff" },
-    { instr ->
+    {
         val address = getAddress(instr)
         val rd = instr and 0x7
 
@@ -39,7 +39,7 @@ val thumbLdrStrRegOff = ThumbInstruction(
 
 val thumbStrh = ThumbInstruction(
     { "Strh" },
-    { instr ->
+    {
         val address = getAddress(instr)
         bus.write16(address, registers[instr and 0x7].toShort())
     }
@@ -47,7 +47,7 @@ val thumbStrh = ThumbInstruction(
 
 val thumbLdrh = ThumbInstruction(
     { "Ldrh" },
-    { instr ->
+    {
         val address = getAddress(instr)
         registers[instr and 0x7] = bus.read16(address).uInt.rotateRight(address.and(0x1).shl(3))
     }
@@ -55,7 +55,7 @@ val thumbLdrh = ThumbInstruction(
 
 val thumbLdsb = ThumbInstruction(
     { "Ldsb" },
-    { instr ->
+    {
         val address = getAddress(instr)
         registers[instr and 0x7] = bus.read8(address).toInt()
     }
@@ -63,7 +63,7 @@ val thumbLdsb = ThumbInstruction(
 
 val thumbLdsh = ThumbInstruction(
     { "Ldsh" },
-    { instr ->
+    {
         val address = getAddress(instr)
         registers[instr and 0x7] = bus.read16(address).toInt().shr((address.and(1).shl(3)))
     }
@@ -71,7 +71,7 @@ val thumbLdsh = ThumbInstruction(
 
 val thumbLdrStrImmOff = ThumbInstruction(
     { "LdrStrImmOff" },
-    { instr ->
+    {
         val offset = (instr ushr 4) and 0x7C
         val address = registers[(instr ushr 3) and 0x7]
         val rd = instr and 0x7
@@ -92,7 +92,7 @@ val thumbLdrStrImmOff = ThumbInstruction(
 
 val thumbLdrhStrhImmOff = ThumbInstruction(
     { "LdrhStrhImmOff" },
-    { instr ->
+    {
         val address = registers[(instr ushr 3) and 0x7] + ((instr ushr 5) and 0x3E)
         val rd = instr and 0x7
 
@@ -106,7 +106,7 @@ val thumbLdrhStrhImmOff = ThumbInstruction(
 
 val thumbLdrStrSpRel = ThumbInstruction(
     { "LdrStrSpRel" },
-    { instr ->
+    {
         val address = registers[13] + ((instr and 0xFF) shl 2)
         val rd = (instr ushr 8) and 0x7
 
@@ -120,7 +120,7 @@ val thumbLdrStrSpRel = ThumbInstruction(
 
 val thumbLdPcSp = ThumbInstruction(
     { "LdPcSp" },
-    { instr ->
+    {
         val offset = (instr and 0xFF) shl 2
         val rd = (instr ushr 8) and 0x7
 
@@ -133,7 +133,7 @@ val thumbLdPcSp = ThumbInstruction(
 
 val thumbSpOff = ThumbInstruction(
     { "SpOff" },
-    { instr ->
+    {
         val offset = (instr and 0x7F) shl 2
 
         when (instr bit 7) {
@@ -145,7 +145,7 @@ val thumbSpOff = ThumbInstruction(
 
 val thumbPush = ThumbInstruction(
     { "Push" },
-    { instr ->
+    {
         var spUpdate = 0
 
         if (instr bit 8) {
@@ -166,7 +166,7 @@ val thumbPush = ThumbInstruction(
 
 val thumbPop = ThumbInstruction(
     { "Pop" },
-    { instr ->
+    {
         var spUpdate = 0
 
         (0..7).forEach {
@@ -189,7 +189,7 @@ val thumbPop = ThumbInstruction(
 
 val thumbStmia = ThumbInstruction(
     { "Stmia" },
-    { instr ->
+    {
         var update = 0
 
         val rb = (instr ushr 8) and 0x7
@@ -221,7 +221,7 @@ val thumbStmia = ThumbInstruction(
 
 val thumbLdmia = ThumbInstruction(
     { "Ldmia" },
-    { instr ->
+    {
         var update = 0
         val rb = (instr ushr 8) and 0x7
         val address = registers[rb]

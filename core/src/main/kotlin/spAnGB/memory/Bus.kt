@@ -8,6 +8,8 @@ import spAnGB.memory.mmio.MMIO
 import spAnGB.ppu.PPU
 import spAnGB.utils.KiB
 import java.nio.ByteBuffer
+import kotlin.contracts.ExperimentalContracts
+import kotlin.contracts.contract
 
 class Bus(
     framebuffer: ByteBuffer,

@@ -11,7 +11,7 @@ import spAnGB.utils.uLong
 
 val thumbMovs = ThumbInstruction(
     { "Movs" },
-    { instr ->
+    {
         val src = registers[(instr ushr 3) and 0x7]
         val amount = (instr ushr 6) and 0x1F
 
@@ -32,7 +32,7 @@ val thumbMovs = ThumbInstruction(
 
 val thumbAddSub = ThumbInstruction(
     { "add/sub" },
-    { instr ->
+    {
         val rn = if (instr bit 10) {
             (instr ushr 6) and 0x7
         } else {

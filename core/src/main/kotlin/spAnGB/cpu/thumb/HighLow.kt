@@ -22,7 +22,7 @@ private fun CPU.getOperands(instr: Int): HiLoOperands {
 
 val thumbHiLoMov = ThumbInstruction(
     { "HiLoMov" },
-    { instr ->
+    {
         val op = getOperands(instr)
 
         setRegister(op.destinationLocation, op.second)
@@ -31,7 +31,7 @@ val thumbHiLoMov = ThumbInstruction(
 
 val thumbHiLoAdd = ThumbInstruction(
     { "HiLoAdd" },
-    { instr ->
+    {
         val op = getOperands(instr)
 
         setRegister(op.destinationLocation, op.first + op.second)
@@ -40,7 +40,7 @@ val thumbHiLoAdd = ThumbInstruction(
 
 val thumbHiLoBx = ThumbInstruction(
     { "HiLoBx" },
-    { instr ->
+    {
         val op = getOperands(instr)
 
         pc = op.second
@@ -50,7 +50,7 @@ val thumbHiLoBx = ThumbInstruction(
 
 val thumbHiLoCmp = ThumbInstruction(
     { "HiLoCmp" },
-    { instr ->
+    {
         val op = getOperands(instr)
 
         val tmp = op.first - op.second

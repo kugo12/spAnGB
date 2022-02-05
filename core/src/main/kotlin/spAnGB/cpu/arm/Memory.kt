@@ -9,8 +9,6 @@ import spAnGB.utils.uInt
 class MemoryAccessDsl(
     @JvmField
     val cpu: CPU,
-    @JvmField
-    val instruction: Int,
     offsetCalc: CPU.(Int) -> Int = {
         when (instruction bit 25) {
             true -> cpu.operand(instruction ushr 4, cpu.registers[instruction and 0xF])
@@ -18,6 +16,9 @@ class MemoryAccessDsl(
         }
     }
 ) {
+    @JvmField
+    val instruction = cpu.pipelineHead
+
     @JvmField
     val offset = offsetCalc(cpu, instruction)
 
@@ -49,16 +50,14 @@ class MemoryAccessDsl(
     }
 }
 
-private inline fun memoryInstruction(crossinline func: MemoryAccessDsl.() -> Unit): CPU.(op: Int) -> Unit =
-    { instr ->
-        MemoryAccessDsl(this, instr).func()
+private inline fun memoryInstruction(crossinline func: MemoryAccessDsl.() -> Unit): CPU.() -> Unit =
+    {
+        MemoryAccessDsl(this).func()
     }
 
-private inline fun hsbMemoryInstruction(crossinline func: MemoryAccessDsl.() -> Unit): CPU.(Int) -> Unit =
-    { instruction ->
-        MemoryAccessDsl(
-            this, instruction
-        ) {
+private inline fun hsbMemoryInstruction(crossinline func: MemoryAccessDsl.() -> Unit): CPU.() -> Unit =
+    {
+        MemoryAccessDsl(this) {
             when (instruction bit 22) {
                 true -> instruction.ushr(4).and(0xF0).or(instruction and 0xF)
                 false -> registers[instruction and 0xF]
@@ -68,7 +67,7 @@ private inline fun hsbMemoryInstruction(crossinline func: MemoryAccessDsl.() -> 
 
 val armSwp = ARMInstruction(
     { "Swp" },
-    { instr ->
+    {
         val rn = registers[(instr ushr 16) and 0xF]
         val rm = registers[instr and 0xF]
         val dest = (instr ushr 12) and 0xF
@@ -107,7 +106,7 @@ val armLdr = ARMInstruction(
 
 val armStr = ARMInstruction(
     { "Str" },
-    { instr ->
+    {
         pc += 4
         val offset = when (instr bit 25) {
             true -> operand(instr ushr 4, registers[instr and 0xF])
@@ -162,7 +161,7 @@ val armLdrhsb = ARMInstruction(
 
 val armStrhsb = ARMInstruction(
     { "Strhsb" },
-    { instr ->
+    {
         pc += 4
         val offset = when (instr bit 22) {
             true -> ((instr ushr 4) and 0xF0) or (instr and 0xF)
@@ -200,7 +199,7 @@ private inline fun registerList(instr: Int, reversed: Boolean): List<Int> =
 
 val armStm = ARMInstruction(
     { "stm" },
-    { instr ->
+    {
         val pre = instr bit 24
         val up = instr bit 23
         val psrForceUser = instr bit 22
@@ -272,7 +271,7 @@ val armStm = ARMInstruction(
 
 val armLdm = ARMInstruction(
     { "ldm" },
-    { instr ->
+    {
         val pre = instr bit 24
         val up = instr bit 23
         val psrForceUser = instr bit 22

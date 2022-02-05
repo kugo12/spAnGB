@@ -10,7 +10,7 @@ private inline val Int.immediate get() = and(0xFF)
 
 val thumbMovImm = ThumbInstruction(
     { "MovImm" },
-    { instr ->
+    {
         registers[instr.destination] = instr.immediate.apply {
             set(CPUFlag.N, false)
             set(CPUFlag.Z, this == 0)
@@ -20,7 +20,7 @@ val thumbMovImm = ThumbInstruction(
 
 val thumbCmpImm = ThumbInstruction(
     { "CmpImm" },
-    { instr ->
+    {
         val rd = registers[instr.destination]
         val result = rd - instr.immediate
 
@@ -33,7 +33,7 @@ val thumbCmpImm = ThumbInstruction(
 
 val thumbSubImm = ThumbInstruction(
     { "SubImm" },
-    { instr ->
+    {
         val rd = registers[instr.destination]
         val result = rd - instr.immediate
         registers[instr.destination] = result
@@ -47,7 +47,7 @@ val thumbSubImm = ThumbInstruction(
 
 val thumbAddImm = ThumbInstruction(
     { "AddImm" },
-    { instr ->
+    {
         val rd = registers[instr.destination]
         val result = rd + instr.immediate
         registers[instr.destination] = result

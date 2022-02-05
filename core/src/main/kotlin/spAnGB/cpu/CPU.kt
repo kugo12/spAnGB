@@ -18,6 +18,7 @@ class CPU(
 
     val mmio = bus.mmio
 
+    @JvmField
     val registers = IntArray(16)
 
     @JvmField
@@ -67,6 +68,10 @@ class CPU(
     val lutARM = Array(4096) { ARMOpFactory(it).execute }
     @JvmField
     val lutThumb = Array(1024) { ThumbOpFactory(it).execute }
+
+    // TODO: remove this
+    inline val instr get() = pipelineHead
+    inline val instruction get() = pipelineHead
 
     init {
         registers[0] = 0x08000000
@@ -120,9 +125,9 @@ class CPU(
         if (op == 0) TODO("[CPU] OpCode 0 at +- ${pc.hex}")
 
         if (state == CPUState.THUMB) {
-            lutThumb[(op ushr 6) and 0x3FF](this, op)
+            lutThumb[(op ushr 6) and 0x3FF](this)
         } else if (checkCondition(op ushr 28)) {
-            lutARM[((op and 0xF0) ushr 4) or ((op ushr 16) and 0xFF0)](this, op)
+            lutARM[((op and 0xF0) ushr 4) or ((op ushr 16) and 0xFF0)](this)
         }
 
         if (state == CPUState.ARM) {

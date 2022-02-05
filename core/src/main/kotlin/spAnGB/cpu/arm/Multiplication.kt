@@ -11,7 +11,7 @@ import spAnGB.utils.uLong
 
 val armMulMla = ARMInstruction(
     { "mul/mla" },
-    { instr ->
+    {
         val destination = (instr ushr 16) and 0xF
         val rn = when (instr bit 21) {
             true -> registers[(instr ushr 12) and 0xF]
@@ -33,7 +33,7 @@ val armMulMla = ARMInstruction(
 
 val armUmullUmlal = ARMInstruction(
     { "Umull/Umlal" },
-    { instr ->
+    {
         val rdLow = (instr ushr 12) and 0xF
         val rdHigh = (instr ushr 16) and 0xF
         val rn: Long = when (instr bit 21) {
@@ -56,7 +56,7 @@ val armUmullUmlal = ARMInstruction(
 
 val armSmullSmlal = ARMInstruction(
     { "Smull/Smlal" },
-    { instr ->
+    {
         val rdLow = (instr ushr 12) and 0xF
         val rdHigh = (instr ushr 16) and 0xF
         val rn = when (instr bit 21) {

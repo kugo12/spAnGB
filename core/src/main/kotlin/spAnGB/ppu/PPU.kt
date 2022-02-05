@@ -87,6 +87,7 @@ class PPU(
         }
     }
 
+
     fun renderJoinedBuffers() {
         val lyc = vcount.ly * 240
         val backdrop = palette.shortBuffer[0].toColor()
@@ -113,7 +114,7 @@ class PPU(
         }
 
         inline val x: Int get() = value.ushr(9).toShort().toInt().shr(7)
-        inline val y: Int get() = value.and(0xFF).toByte().toInt()
+        inline val y: Int get() = value.and(0xFF).toInt().let { if (it > 160) it.shl(24).shr(24) else it }
         inline val disabled: Boolean get() = !(value bit 8) && value bit 9
         inline val is8Bit: Boolean get() = value bit 13
         inline val horizontalFlip: Boolean get() = value bit 28
@@ -161,31 +162,28 @@ class PPU(
             val paletteOffset = 16 * paletteNumber + 0x100
             val rowSize = 4
             val tileSize = rowSize * 8
+            val tilesInRow = 32
 
             val yOffset = lyc - y
 
             val tileRowOffset = 0x10000 +
-                    (if (verticalFlip) 7 - (yOffset % 8) else (yOffset % 8)) * rowSize +
                     tileNumber * tileSize +
-                    (if (verticalFlip) (height - yOffset)/8 else (yOffset / 8)) * 32 * tileSize
+                    (if (verticalFlip) 7 - (yOffset % 8) else (yOffset % 8)) * rowSize +
+                    (if (verticalFlip) (height - yOffset - 1) / 8 else (yOffset / 8)) * tilesInRow * tileSize
             val screenPixelOffset = if (x > 0) x else 0
-            val pixelsLeft = if (x >= 240 - width) 239 - x else if (x < 0) width + x else width
-            val pixelsToSkipEnd = if (x > 240 - width) (239 - x) % 8 else 0
+            val pixelsLeft = if (x >= 240 - width) 240 - x else if (x < 0) width + x else width
+            val pixelsToSkipEnd = if (x >= 240 - width) ((240 - x + width) % 8) else 0
             val pixelsToSkipStart = if (x < 0) -x else 0
 
             var currentPixel = 0
             while (currentPixel < pixelsLeft) {
                 val vramOffset = if (horizontalFlip) {
                     ((pixelsLeft - currentPixel - 1) + pixelsToSkipStart).div(2).let {
-                        tileRowOffset +
-//                            (it % rowSize) +
-                                (it / rowSize) * tileSize
+                        tileRowOffset + (it / rowSize) * tileSize
                     }
                 } else {
                     (currentPixel + pixelsToSkipStart).div(2).let {
-                        tileRowOffset +
-//                            (it % rowSize) +
-                                (it / rowSize) * tileSize
+                        tileRowOffset + (it / rowSize) * tileSize
                     }
                 }
 
@@ -193,7 +191,7 @@ class PPU(
                     buffer,
                     vramOffset,
                     currentPixel + screenPixelOffset,
-                    if (x + currentPixel + pixelsToSkipEnd >= 240) pixelsToSkipEnd else 0,
+                    if (x + currentPixel + pixelsToSkipEnd >= 240) 7 - pixelsToSkipEnd else 0,
                     paletteOffset,
                     horizontalFlip,
                     if (currentPixel == 0 && x < 0) 7 - (pixelsToSkipStart % 8) else 0
@@ -203,20 +201,28 @@ class PPU(
     }
 
     fun SpriteData.shouldBeRendered(): Boolean {
-        if (shape >= 3) return false
+        if (shape >= 3) {
+            println("Invalid sprite shape size")
+            return false
+        }
 
         val (width, height) = spriteSizes[shape][size]
         val lyc = vcount.ly
         val y = y
         val x = x
 
-        return !disabled && lyc >= y && lyc < y + height && x < 240 && x > -width
+        return !disabled &&
+                lyc >= y &&
+                lyc < y + height &&
+                x < 240 &&
+                x > -width
     }
 
+    private val spriteIterator = 127 downTo 0
     fun renderSprites() {
         if (displayControl.isOneDimensionalMapping) TODO("One dimensional mapping not implemented rn")
 
-        (127 downTo 0).forEach {
+        spriteIterator.forEach {
             SpriteData(sprites[it]).apply {
                 if (shouldBeRendered()) render()
             }
@@ -233,10 +239,10 @@ class PPU(
 
     fun renderBgMode0() {  // BG 0-3
         listOf(
-            0 to displayControl.isBg0,
-            1 to displayControl.isBg1,
+            3 to displayControl.isBg3,
             2 to displayControl.isBg2,
-            3 to displayControl.isBg3
+            1 to displayControl.isBg1,
+            0 to displayControl.isBg0
         )
             .filter { it.second }
             .forEach { (bg, _) ->
@@ -304,31 +310,54 @@ class PPU(
         val pixelsFromRowToRender = if (7 - pixelsToSkipEnd + currentPixelX >= 240)
             239 - currentPixelX else 7 - pixelsToSkipEnd
 
-        val iter = if (flip)
-            pixelsFromRowToRender downTo pixelsToSkipStart
-        else
-            pixelsToSkipStart..pixelsFromRowToRender
-
-
         var x = 0
-        for (pix in iter) {
-            val aaaa = (pix + pixelsFromRowToRender) and 1 != 0
-            val color = vram.byteBuffer[tileRowOffset + pix / 2].toInt().let {
-                if ((flip && !aaaa) || (!aaaa && !flip)) {
-                    it.ushr(4).and(0xF)
-                } else {
-                    it and 0xF
-                }
+
+        if (flip) {
+            var pix = pixelsFromRowToRender
+            while (pix >= pixelsToSkipStart) {
+                blit4BitPixel(
+                    buffer,
+                    tileRowOffset + pix / 2,
+                    paletteOffset,
+                    pix,
+                    x + currentPixelX
+                )
+
+                x += 1
+                pix -= 1
             }
+        } else {
+            var pix = pixelsToSkipStart
+            while (pix <= pixelsFromRowToRender) {
+                blit4BitPixel(
+                    buffer,
+                    tileRowOffset + pix / 2,
+                    paletteOffset,
+                    pix,
+                    x + currentPixelX
+                )
 
-            if (color != 0)
-                buffer[x + currentPixelX] = palette.shortBuffer[color + paletteOffset].toColor()
-
-            x += 1
+                x += 1
+                pix += 1
+            }
         }
 
         return x
     }
+
+    fun blit4BitPixel(buffer: IntArray, vramOffset: Int, paletteOffset: Int, pixel: Int, pixelInBuffer: Int) {
+        val color = vram.byteBuffer[vramOffset].toInt().let {
+            if (pixel bit 0) {
+                it.ushr(4).and(0xF)
+            } else {
+                it and 0xF
+            }
+        }
+
+        if (color != 0)
+            buffer[pixelInBuffer] = palette.shortBuffer[color + paletteOffset].toColor()
+    }
+
 
     fun checkVCounter() {
         val vc = vcount.ly == displayStat.lyc

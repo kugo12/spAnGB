@@ -8,38 +8,45 @@ import spAnGB.utils.hex
 import spAnGB.utils.toInt
 import spAnGB.utils.uLong
 
+val dataProcessingDsl = DataProcessingDsl()
 
-class DataProcessingDsl(
+class DataProcessingDsl {
+    lateinit var cpu: CPU
     @JvmField
-    val cpu: CPU,
+    var instruction: Int = 0
     @JvmField
-    val instruction: Int
-) {
+    var firstOperand: Int = 0
     @JvmField
-    val firstOperand: Int
-    @JvmField
-    val secondOperand: Int = when {
-        !(instruction bit 25) && instruction bit 4 -> {
-            cpu.pc += 4
-            val tmp = cpu.operand(instruction ushr 4, cpu.registers[instruction and 0xF])
-            firstOperand = cpu.registers[(instruction ushr 16) and 0xF]
-            cpu.pc -= 4
-            tmp
-        }
-        instruction bit 25 -> {
-            firstOperand = cpu.registers[(instruction ushr 16) and 0xF]
-            cpu.barrelShifterRotateRight(instruction and 0xFF, (instruction and 0xF00) ushr 7)
-        }
-        else -> {
-            firstOperand = cpu.registers[(instruction ushr 16) and 0xF]
-            cpu.operand(instruction ushr 4, cpu.registers[instruction and 0xF])
-        }
-    }
+    var secondOperand: Int = 0
 
     @JvmField
-    val destinationRegister: Int = (instruction ushr 12) and 0xF
+    var destinationRegister: Int = 0
     @JvmField
     var result: Int = 0
+
+    fun initialize(cpu: CPU) {
+        this.cpu = cpu
+        this.instruction = cpu.pipelineHead
+
+        destinationRegister = (instruction ushr 12) and 0xF
+        secondOperand = when {
+            !(instruction bit 25) && instruction bit 4 -> {
+                cpu.pc += 4
+                val tmp = cpu.operand(instruction ushr 4, cpu.registers[instruction and 0xF])
+                firstOperand = cpu.registers[(instruction ushr 16) and 0xF]
+                cpu.pc -= 4
+                tmp
+            }
+            instruction bit 25 -> {
+                firstOperand = cpu.registers[(instruction ushr 16) and 0xF]
+                cpu.barrelShifterRotateRight(instruction and 0xFF, (instruction and 0xF00) ushr 7)
+            }
+            else -> {
+                firstOperand = cpu.registers[(instruction ushr 16) and 0xF]
+                cpu.operand(instruction ushr 4, cpu.registers[instruction and 0xF])
+            }
+        }
+    }
 
 
     inline fun perform(func: DataProcessingDsl.() -> Int) {
@@ -133,9 +140,10 @@ class DataProcessingDsl(
 }
 
 
-private inline fun instruction(crossinline func: DataProcessingDsl.() -> Unit): CPU.(op: Int) -> Unit =
-    { instr ->
-        DataProcessingDsl(this, instr).func()
+private inline fun instruction(crossinline func: DataProcessingDsl.() -> Unit): CPU.() -> Unit =
+    {
+        dataProcessingDsl.initialize(this)
+        dataProcessingDsl.func()
     }
 
 val armAnd = ARMInstruction(
@@ -313,7 +321,7 @@ val armMrs = ARMInstruction(
 
 val armMsr = ARMInstruction(
     { "Msr" },
-    { instr ->
+    {
         val src = when (instr bit 25) {
             true -> (instr and 0xFF).rotateRight((instr and 0xF00) ushr 7)
             false -> registers[instr and 0xF]

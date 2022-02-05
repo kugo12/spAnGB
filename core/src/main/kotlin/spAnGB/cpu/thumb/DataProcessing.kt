@@ -13,27 +13,34 @@ import spAnGB.utils.hex
 import spAnGB.utils.toInt
 import spAnGB.utils.uLong
 
-class DataProcessingDsl(val cpu: CPU, instruction: Int) {
+val dataProcessingDsl = DataProcessingDsl()  // This is not thread safe at all, ik
+
+class DataProcessingDsl {
+    lateinit var cpu: CPU
     @JvmField
-    val operand: Int = cpu.registers[(instruction ushr 3) and 0x7]
+    var operand = 0
     @JvmField
-    val destinationRegister: Int = instruction and 0x7
+    var destinationRegister = 0
     @JvmField
-    var result: Int = 0
+    var result = 0
 
     @JvmField
-    val dest = cpu.registers[destinationRegister]
+    var destination = 0
 
-    inline var destination: Int
-        get() = dest
-        set(value) {
-            cpu.registers[destinationRegister] = value
-        }
+    fun initialize(cpu: CPU) {
+        val instruction = cpu.instruction
+        this.cpu = cpu
+        result = 0
+        operand = cpu.registers[(instruction ushr 3) and 0x7]
+        destinationRegister = instruction and 0x7
+        destination = cpu.registers[destinationRegister]
+    }
+
 
     inline fun perform(func: DataProcessingDsl.() -> Int) {
         val tmp = func()
         result = tmp
-        destination = tmp
+        cpu.registers[destinationRegister] = tmp
         N = tmp < 0
         Z = tmp == 0
     }
@@ -46,7 +53,7 @@ class DataProcessingDsl(val cpu: CPU, instruction: Int) {
 
     inline fun performShift(func: CPU.(Int, Int) -> Int) {
         val tmp = cpu.func(destination, operand and 0xFF)
-        destination = tmp
+        cpu.registers[destinationRegister] = tmp
         C = cpu.shifterCarry
         N = tmp < 0
         Z = tmp == 0
@@ -56,12 +63,12 @@ class DataProcessingDsl(val cpu: CPU, instruction: Int) {
         V = (operand xor destination).inv() and (destination xor result) < 0
     }
 
-    inline fun dumbCarry(func: DataProcessingDsl.() -> Long) {  // TODO
-        C = func() bit 32
+    inline fun subOverflow() {
+        V = (destination xor operand) and (operand xor result).inv() < 0
     }
 
-    inline fun subOverflow(dest: Int = this.dest, op: Int = operand) {
-        V = (dest xor op) and (op xor result).inv() < 0
+    inline fun dumbCarry(func: DataProcessingDsl.() -> Long) {  // TODO
+        C = func() bit 32
     }
 
     inline fun dumbBorrow(func: DataProcessingDsl.() -> Long) {  // TODO
@@ -96,20 +103,24 @@ class DataProcessingDsl(val cpu: CPU, instruction: Int) {
         }
 }
 
-private inline fun instruction(crossinline func: DataProcessingDsl.() -> Unit): CPU.(Int) -> Unit = { instr ->
-    DataProcessingDsl(this, instr).func()
+private inline fun instruction(crossinline func: DataProcessingDsl.() -> Unit): CPU.() -> Unit = {
+    dataProcessingDsl.initialize(this)
+    dataProcessingDsl.func()
 }
 
-private inline fun simpleInstruction(crossinline func: DataProcessingDsl.() -> Int): CPU.(Int) -> Unit = { instr ->
-    DataProcessingDsl(this, instr).perform(func)
+private inline fun simpleInstruction(crossinline func: DataProcessingDsl.() -> Int): CPU.() -> Unit = {
+    dataProcessingDsl.initialize(this)
+    dataProcessingDsl.perform(func)
 }
 
-private inline fun simpleInstructionWithoutDestination(crossinline func: DataProcessingDsl.() -> Int): CPU.(Int) -> Unit = { instr ->
-    DataProcessingDsl(this, instr).performWithoutDestination(func)
+private inline fun simpleInstructionWithoutDestination(crossinline func: DataProcessingDsl.() -> Int): CPU.() -> Unit = {
+    dataProcessingDsl.initialize(this)
+    dataProcessingDsl.performWithoutDestination(func)
 }
 
-private inline fun shiftInstruction(crossinline func: CPU.(Int, Int) -> Int): CPU.(Int) -> Unit = { instr ->
-    DataProcessingDsl(this, instr).performShift(func)
+private inline fun shiftInstruction(crossinline func: CPU.(Int, Int) -> Int): CPU.() -> Unit = {
+    dataProcessingDsl.initialize(this)
+    dataProcessingDsl.performShift(func)
 }
 
 val thumbAnd = ThumbInstruction(
