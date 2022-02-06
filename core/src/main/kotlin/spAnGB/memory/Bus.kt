@@ -5,6 +5,7 @@ package spAnGB.memory
 import spAnGB.Scheduler
 import spAnGB.memory.dma.DMA
 import spAnGB.memory.mmio.MMIO
+import spAnGB.memory.rom.Cartridge
 import spAnGB.ppu.PPU
 import spAnGB.utils.KiB
 import java.nio.ByteBuffer
@@ -44,7 +45,7 @@ class Bus(
     private inline fun <T> get(address: Int, func: Memory.() -> T): T =
         when ((address ushr 24) and 0xF) {
             0x0 -> bios.func()         // 0 - BIOS
-            0x1 -> Memory.stub.func()  // 1 - not used
+            0x1 -> Memory.silentStub.func()  // 1 - not used
             0x2 -> wram.func()  // 2 - WRAM
             0x3 -> iwram.func()  // 3 - IWRAM
             0x4 -> mmio.func()  // 4 - MMIO
@@ -57,8 +58,8 @@ class Bus(
             0xB -> cartridge.func()  // B - GamePak - wait state 1
             0xC -> cartridge.func()  // C - GamePak - wait state 2
             0xD -> cartridge.func()  // D - GamePak - wait state 2
-            0xE -> cartridge.func()  // E - GamePak - SRAM
-            0xF -> cartridge.func()  // F - not used / SRAM mirror
+            0xE -> cartridge.persistence.func()  // E - GamePak - SRAM
+            0xF -> cartridge.persistence.func()  // F - not used / SRAM mirror
             else -> throw IllegalStateException()
         }
 }

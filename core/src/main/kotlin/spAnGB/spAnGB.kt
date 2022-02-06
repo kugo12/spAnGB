@@ -2,15 +2,14 @@ package spAnGB
 
 import spAnGB.cpu.CPU
 import spAnGB.memory.Bus
-import spAnGB.memory.Cartridge
-import spAnGB.ppu.PPU
+import spAnGB.memory.rom.Cartridge
 import java.io.File
 import java.nio.ByteBuffer
 
 @Suppress("ClassName")
 class spAnGB(
     framebuffer: ByteBuffer,
-    rom: File = File("kirbynightmare.gba")
+    rom: File = File("firered.gba")
 ) {
     val scheduler = Scheduler()
     val bus = Bus(

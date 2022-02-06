@@ -1,11 +1,15 @@
-package spAnGB.memory
+package spAnGB.memory.rom
 
+import spAnGB.memory.Memory
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.IntBuffer
 import java.nio.ShortBuffer
+import java.nio.charset.Charset
 import java.nio.charset.StandardCharsets
+
+val test = listOf("EEPROM_V", "SRAM_V", "FLASH_V", "FLASH512_V", "FLASH1M_V")
 
 class Cartridge(
     file: File
@@ -17,11 +21,17 @@ class Cartridge(
     val title: String
     val size: Int
 
+    val persistence: Memory = FlashStub()
+
     init {
         val rom = file.readBytes()
 
         if (calculateHeaderChecksum(rom) != rom[0xBD]) {
             throw IllegalStateException("Invalid rom file")
+        }
+
+        rom.toString(Charset.defaultCharset()).findAnyOf(test)?.let { (_, type) ->
+//            TODO("$type not supported rn")
         }
 
         title = rom

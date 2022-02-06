@@ -40,21 +40,29 @@ class MMIO(
 
     inline operator fun get(address: Int): Memory =
         when (address and 0xFFFFFF) {
-            0x0 -> bus.ppu.displayControl
-            0x4 -> bus.ppu.displayStat
-            0x6 -> bus.ppu.vcount
-            0x8 -> bus.ppu.bgControl[0]
-            0xA -> bus.ppu.bgControl[1]
-            0xC -> bus.ppu.bgControl[2]
-            0xE -> bus.ppu.bgControl[3]
-            0x10 -> bus.ppu.bgXOffset[0]  // TODO: offsets should be write only
-            0x12 -> bus.ppu.bgYOffset[0]
-            0x14 -> bus.ppu.bgXOffset[1]
-            0x16 -> bus.ppu.bgYOffset[1]
-            0x18 -> bus.ppu.bgXOffset[2]
-            0x1A -> bus.ppu.bgYOffset[2]
-            0x1C -> bus.ppu.bgXOffset[3]
-            0x1E -> bus.ppu.bgYOffset[3]
+            0x0, 0x1 -> bus.ppu.displayControl
+            0x4, 0x5 -> bus.ppu.displayStat
+            0x6, 0x7 -> bus.ppu.vcount
+            0x8, 0x9 -> bus.ppu.bgControl[0]
+            0xA, 0xB -> bus.ppu.bgControl[1]
+            0xC, 0xD -> bus.ppu.bgControl[2]
+            0xE, 0xF -> bus.ppu.bgControl[3]
+
+            0x10, 0x11 -> bus.ppu.bgXOffset[0]  // TODO: offsets should be write only
+            0x12, 0x13 -> bus.ppu.bgYOffset[0]
+            0x14, 0x15 -> bus.ppu.bgXOffset[1]
+            0x16, 0x17 -> bus.ppu.bgYOffset[1]
+            0x18, 0x19 -> bus.ppu.bgXOffset[2]
+            0x1A, 0x1B -> bus.ppu.bgYOffset[2]
+            0x1C, 0x1D -> bus.ppu.bgXOffset[3]
+            0x1E, 0x1F -> bus.ppu.bgYOffset[3]
+
+            0x40, 0x41 -> bus.ppu.windowHorizontal[0]
+            0x42, 0x43 -> bus.ppu.windowHorizontal[1]
+            0x44, 0x45 -> bus.ppu.windowVertical[0]
+            0x46, 0x47 -> bus.ppu.windowVertical[1]
+            0x48, 0x49 -> bus.ppu.winIn
+            0x4A, 0x4B -> bus.ppu.winOut
 
             0xB0, 0xB2 -> bus.dma[0].source
             0xB4, 0xB6 -> bus.dma[0].destination
@@ -78,8 +86,12 @@ class MMIO(
             0x200 -> ie
             0x202 -> ir
             0x208 -> ime
-            0x20A -> Memory.silentStub  // TODO
             0x301 -> halt
+
+            0x20A -> Memory.silentStub  // TODO
+            0x134 -> Memory.silentStub
+            0x128 -> Memory.silentStub
+
             else -> Memory.stub
         }
 }
