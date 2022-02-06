@@ -68,6 +68,8 @@ class CPU(
     val lutARM = Array(4096) { ARMOpFactory(it).execute }
     @JvmField
     val lutThumb = Array(1024) { ThumbOpFactory(it).execute }
+    @JvmField
+    val lutCondition = flagLutFactory()
 
     // TODO: remove this
     inline val instr get() = pipelineHead
@@ -97,25 +99,7 @@ class CPU(
     }
 
 
-    fun checkCondition(op: Int): Boolean = when (op) {
-        0x0 -> this[CPUFlag.Z]
-        0x1 -> !this[CPUFlag.Z]
-        0x2 -> this[CPUFlag.C]
-        0x3 -> !this[CPUFlag.C]
-        0x4 -> this[CPUFlag.N]
-        0x5 -> !this[CPUFlag.N]
-        0x6 -> this[CPUFlag.V]
-        0x7 -> !this[CPUFlag.V]
-        0x8 -> this[CPUFlag.C] && !this[CPUFlag.Z]
-        0x9 -> !this[CPUFlag.C] || this[CPUFlag.Z]
-        0xA -> this[CPUFlag.N] == this[CPUFlag.V]
-        0xB -> this[CPUFlag.N] != this[CPUFlag.V]
-        0xC -> !this[CPUFlag.Z] && (this[CPUFlag.N] == this[CPUFlag.V])
-        0xD -> this[CPUFlag.Z] || (this[CPUFlag.N] != this[CPUFlag.V])
-        0xE -> true
-        0xF -> false
-        else -> throw IllegalStateException("Undefined condition: ${op.hex}")
-    }
+    fun checkCondition(op: Int): Boolean = lutCondition[op or cpsr.ushr(24)]
 
     fun tick() {
         handlePendingInterrupts()

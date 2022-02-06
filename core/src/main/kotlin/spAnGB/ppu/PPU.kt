@@ -38,7 +38,7 @@ class PPU(
     val bgXOffset = Array(4) { BackgroundOffset() }
     val bgYOffset = Array(4) { BackgroundOffset() }
 
-    val priorityBuffers = Array(4) { IntArray(240) }
+    val lineBuffers = Array(5) { IntArray(240) }
 
     val hdrawRef = ::hdraw
     val hblankRef = ::hblank
@@ -51,7 +51,7 @@ class PPU(
 
     fun renderBgMode4() {
         val offset = vcount.ly * 240
-        val buffer = priorityBuffers[0]
+        val buffer = lineBuffers[0]
 
         for (it in 0 until 240) {
             buffer[it] = palette.shortBuffer[
@@ -62,7 +62,7 @@ class PPU(
 
     fun renderBgMode3() {
         val offset = vcount.ly * 240
-        val buffer = priorityBuffers[0]
+        val buffer = lineBuffers[0]
 
         for (it in 0 until 240) {
             buffer[it] = vram.shortBuffer[it + offset].toColor()
@@ -77,26 +77,24 @@ class PPU(
         inline val palette: Int get() = value.and(0xF000).ushr(12)
     }
 
-    @JvmField
-    val lineBuffer = IntArray(240)
-
     fun renderJoinedBuffers() {
         val backdrop = palette.shortBuffer[0].toColor()
+        val finalBuffer = lineBuffers[4]
 
         for (pixel in 0 until 240) {
-            for (buffer in priorityBuffers) {
+            for (buffer in lineBuffers) {
                 if (buffer[pixel] != 0) {
-                    lineBuffer[pixel] = buffer[pixel]
+                    finalBuffer[pixel] = buffer[pixel]
                     break
                 }
             }
 
-            if (lineBuffer[pixel] == 0) {
-                lineBuffer[pixel] = backdrop
+            if (finalBuffer[pixel] == 0) {
+                finalBuffer[pixel] = backdrop
             }
         }
 
-        framebuffer.put(vcount.ly * 240, lineBuffer)
+        framebuffer.put(vcount.ly * 240, finalBuffer, 0, 240)
     }
 
     @JvmInline
@@ -142,7 +140,7 @@ class PPU(
     )
 
     fun SpriteData.render() {
-        val buffer = priorityBuffers[priority]
+        val buffer = lineBuffers[priority]
         val lyc = vcount.ly
         val (width, height) = spriteSizes[shape][size]
         val x = x
@@ -290,6 +288,10 @@ class PPU(
             buffer[pixelInBuffer] = palette.shortBuffer[color + paletteOffset].toColor()
     }
 
+    fun clearLineBuffers() {
+        for (it in lineBuffers) it.fill(0)
+    }
+
 
     fun checkVCounter() {
         val vc = vcount.ly == displayStat.lyc
@@ -302,9 +304,7 @@ class PPU(
     }
 
     fun hdraw(taskIndex: Int) {
-        priorityBuffers.forEach {
-            it.fill(0)
-        }
+        clearLineBuffers()
 
         when (displayControl.bgMode) {
             0 -> renderBgMode0()

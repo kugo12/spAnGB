@@ -7,7 +7,7 @@ import spAnGB.utils.KiB
 
 inline fun PPU.renderBgText(n: Int) {
     val control = bgControl[n]
-    val buffer = priorityBuffers[control.priority]
+    val buffer = lineBuffers[control.priority]
     val (bgWidth, bgHeight) = backgroundSizes[control.size]
 
     val tileMapOffset = control.characterBaseBlock * 16 * KiB
