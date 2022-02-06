@@ -4,9 +4,11 @@ import spAnGB.Scheduler
 import spAnGB.memory.RAM
 import spAnGB.memory.mmio.Interrupt
 import spAnGB.memory.mmio.MMIO
+import spAnGB.ppu.bg.renderBgMode0
 import spAnGB.ppu.mmio.*
 import spAnGB.utils.KiB
 import spAnGB.utils.bit
+import spAnGB.utils.toColor
 import spAnGB.utils.uInt
 import java.nio.ByteBuffer
 
@@ -38,27 +40,23 @@ class PPU(
 
     val priorityBuffers = Array(4) { IntArray(240) }
 
+    val hdrawRef = ::hdraw
+    val hblankRef = ::hblank
+    val vblankRef = ::vblank
+
     init {
-        scheduler.schedule(HDRAW_CYCLES, ::hdraw)
+        scheduler.schedule(HDRAW_CYCLES, hdrawRef)
     }
 
-    fun Short.toColor() = toInt().let {
-        it.and(0x1F).shl(27)  // R
-            .or(it.and(0x3E0).shl(14))  // G
-            .or(it.and(0x7C00).shl(1))  // B
-            .or(0xFF)  // A
-    }
 
     fun renderBgMode4() {
         val offset = vcount.ly * 240
         val buffer = priorityBuffers[0]
 
-        (0 until 240).forEach {
-            val color = palette.shortBuffer[
+        for (it in 0 until 240) {
+            buffer[it] = palette.shortBuffer[
                     vram.byteBuffer[it + offset].uInt
             ].toColor()
-
-            buffer[it] = color
         }
     }
 
@@ -66,7 +64,7 @@ class PPU(
         val offset = vcount.ly * 240
         val buffer = priorityBuffers[0]
 
-        (0 until 240).forEach {
+        for (it in 0 until 240) {
             buffer[it] = vram.shortBuffer[it + offset].toColor()
         }
     }
@@ -79,32 +77,26 @@ class PPU(
         inline val palette: Int get() = value.and(0xF000).ushr(12)
     }
 
-    fun renderBackDrop() {
-        val color = palette.shortBuffer[0].toColor()
-
-        priorityBuffers.forEach {
-            it.fill(color)
-        }
-    }
-
+    @JvmField
+    val lineBuffer = IntArray(240)
 
     fun renderJoinedBuffers() {
-        val lyc = vcount.ly * 240
         val backdrop = palette.shortBuffer[0].toColor()
 
         for (pixel in 0 until 240) {
-            val index = lyc + pixel
             for (buffer in priorityBuffers) {
                 if (buffer[pixel] != 0) {
-                    framebuffer.put(index, buffer[pixel])
+                    lineBuffer[pixel] = buffer[pixel]
                     break
                 }
             }
 
-            if (framebuffer[index] == 0) {
-                framebuffer.put(index, backdrop)
+            if (lineBuffer[pixel] == 0) {
+                lineBuffer[pixel] = backdrop
             }
         }
+
+        framebuffer.put(vcount.ly * 240, lineBuffer)
     }
 
     @JvmInline
@@ -218,11 +210,10 @@ class PPU(
                 x > -width
     }
 
-    private val spriteIterator = 127 downTo 0
     fun renderSprites() {
         if (displayControl.isOneDimensionalMapping) TODO("One dimensional mapping not implemented rn")
 
-        spriteIterator.forEach {
+        for (it in 127 downTo 0) {
             SpriteData(sprites[it]).apply {
                 if (shouldBeRendered()) render()
             }
@@ -237,66 +228,7 @@ class PPU(
         512 to 512,
     )
 
-    fun renderBgMode0() {  // BG 0-3
-        listOf(
-            3 to displayControl.isBg3,
-            2 to displayControl.isBg2,
-            1 to displayControl.isBg1,
-            0 to displayControl.isBg0
-        )
-            .filter { it.second }
-            .forEach { (bg, _) ->
-                val control = bgControl[bg]
-                val buffer = priorityBuffers[control.priority]
-                val (bgWidth, bgHeight) = backgroundSizes[control.size]
 
-                val tileMapOffset = control.characterBaseBlock * 16 * KiB
-                val mapOffset = control.screenBaseBlock * 1 * KiB
-                val bgYOffset = bgYOffset[bg].offset
-                val bgXOffset = bgXOffset[bg].offset
-
-                // tiles are 8x8
-                val screenRowOffset = vcount.ly * 240
-
-                var currentPixel = 0
-
-                if (control.isSinglePalette) {
-                    TODO()
-                } else {
-                    val bgTileSize = 32
-                    val rowSize = 4
-                    val yTileOffset = (((vcount.ly + bgYOffset) % 256) / 8) * 32
-
-                    val yOffset = (vcount.ly + bgYOffset) % 8
-
-                    while (currentPixel < 240) {
-                        val xTileOffset =
-                            (((currentPixel + bgXOffset) / 256) % 2) * 32 * 32 + ((currentPixel + bgXOffset) % 256) / 8
-
-                        val entry = BackgroundTextTile(
-                            vram.shortBuffer[xTileOffset + yTileOffset + mapOffset].toInt()
-                        )
-                        val xOffset = bgXOffset % 8
-
-                        val tileRowOffset = tileMapOffset +
-                                entry.tileNumber * bgTileSize +
-                                (if (entry.verticalFlip) 7 - yOffset else yOffset) * rowSize
-
-                        val paletteOffset = 16 * entry.palette
-
-                        currentPixel += blit4BitTileRow(
-                            buffer,
-                            tileRowOffset,
-                            currentPixel,
-                            if (currentPixel + xOffset >= 240) 7 - xOffset else 0,
-                            paletteOffset,
-                            entry.horizontalFlip,
-                            if (currentPixel == 0) xOffset else 0
-                        )
-                    }
-                }
-            }
-    }
 
     fun blit4BitTileRow(
         buffer: IntArray,
@@ -384,7 +316,7 @@ class PPU(
         renderSprites()
         renderJoinedBuffers()
 
-        scheduler.schedule(HBLANK_CYCLES, ::hblank, taskIndex)
+        scheduler.schedule(HBLANK_CYCLES, hblankRef, taskIndex)
 
         displayStat[DisplayStatFlag.HBLANK] = true
         if (displayStat[DisplayStatFlag.HBLANK_IRQ]) {
@@ -397,7 +329,7 @@ class PPU(
         checkVCounter()
 
         if (vcount.ly >= VDRAW_HEIGHT) {
-            scheduler.schedule(SCANLINE_CYCLES, ::vblank, taskIndex)
+            scheduler.schedule(SCANLINE_CYCLES, vblankRef, taskIndex)
 
             displayStat[DisplayStatFlag.HBLANK] = false
             displayStat[DisplayStatFlag.VBLANK] = true
@@ -406,7 +338,7 @@ class PPU(
                 mmio.ir[Interrupt.VBlank] = true
             }
         } else {
-            scheduler.schedule(HDRAW_CYCLES, ::hdraw, taskIndex)
+            scheduler.schedule(HDRAW_CYCLES, hdrawRef, taskIndex)
         }
     }
 
@@ -414,12 +346,12 @@ class PPU(
         vcount.ly += 1
 
         if (vcount.ly >= TOTAL_HEIGHT) {
-            scheduler.schedule(HDRAW_CYCLES, ::hdraw, taskIndex)
+            scheduler.schedule(HDRAW_CYCLES, hdrawRef, taskIndex)
 
             displayStat[DisplayStatFlag.VBLANK] = false
             vcount.ly = 0
         } else {
-            scheduler.schedule(SCANLINE_CYCLES, ::vblank, taskIndex)
+            scheduler.schedule(SCANLINE_CYCLES, vblankRef, taskIndex)
         }
 
         checkVCounter()

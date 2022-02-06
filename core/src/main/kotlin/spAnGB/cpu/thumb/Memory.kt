@@ -153,7 +153,7 @@ val thumbPush = ThumbInstruction(
             bus.write32(registers[13] - spUpdate, lr)
         }
 
-        (7 downTo 0).forEach {
+        for (it in 7 downTo 0) {
             if (instr bit it) {
                 spUpdate += 4
                 bus.write32(registers[13] - spUpdate, registers[it])
@@ -169,7 +169,7 @@ val thumbPop = ThumbInstruction(
     {
         var spUpdate = 0
 
-        (0..7).forEach {
+        for (it in 0..7) {
             if (instr bit it) {
                 registers[it] = bus.read32(registers[13] + spUpdate)
                 spUpdate += 4
@@ -194,15 +194,15 @@ val thumbStmia = ThumbInstruction(
 
         val rb = (instr ushr 8) and 0x7
         val address = registers[rb]
-        var rbAddress: Int? = null
-        val regs = (0..7).filter { instr bit it }
-
+        var rbAddress = -1
 
         if (instr and 0xFF == 0) {
             bus.write32(address, (pc + 2).and(2.inv()))
             update += 0x40
         } else {
-            regs.forEach {
+            for (it in 0 .. 7) {
+                if (!(instr bit it)) continue
+
                 if (it == rb) {
                     rbAddress = address + update
                 }
@@ -213,8 +213,8 @@ val thumbStmia = ThumbInstruction(
         }
 
         registers[rb] += update
-        if (rbAddress != null && regs.firstOrNull() != rb) {
-            bus.write32(rbAddress!!, registers[rb])
+        if (rbAddress != -1 && instr.and(1.shl(rb).minus(1)) != 0) {
+            bus.write32(rbAddress, registers[rb])
         }
     }
 )
@@ -230,7 +230,7 @@ val thumbLdmia = ThumbInstruction(
             setRegister(15, bus.read32(address))
             update += 0x40
         } else {
-            (0..7).forEach {
+            for (it in 0..7) {
                 if (instr bit it) {
                     registers[it] = bus.read32(address + update)
                     update += 4

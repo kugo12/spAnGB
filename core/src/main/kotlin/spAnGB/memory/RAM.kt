@@ -7,10 +7,13 @@ class RAM(
     size: Int
 ): Memory {
     val mask = size - 1  // Warning: this is not universal at all
+    @JvmField
     val byteBuffer = ByteBuffer.allocate(size).apply {
         order(ByteOrder.LITTLE_ENDIAN)
     }
+    @JvmField
     val shortBuffer = byteBuffer.asShortBuffer()
+    @JvmField
     val intBuffer = byteBuffer.asIntBuffer()
 
 

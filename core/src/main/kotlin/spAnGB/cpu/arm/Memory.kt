@@ -6,64 +6,6 @@ import spAnGB.cpu.CPUMode
 import spAnGB.utils.bit
 import spAnGB.utils.uInt
 
-class MemoryAccessDsl(
-    @JvmField
-    val cpu: CPU,
-    offsetCalc: CPU.(Int) -> Int = {
-        when (instruction bit 25) {
-            true -> cpu.operand(instruction ushr 4, cpu.registers[instruction and 0xF])
-            false -> instruction and 0xFFF
-        }
-    }
-) {
-    @JvmField
-    val instruction = cpu.pipelineHead
-
-    @JvmField
-    val offset = offsetCalc(cpu, instruction)
-
-    @JvmField
-    val base = (instruction ushr 16) and 0xF
-
-    @JvmField
-    val addressWithOffset = when (instruction bit 23) {
-        true -> cpu.registers[base] + offset
-        false -> cpu.registers[base] - offset
-    }
-
-    @JvmField
-    val srcOrDst = (instruction ushr 12) and 0xF
-
-    @JvmField
-    val pre = instruction bit 24
-
-    @JvmField
-    val address = if (pre) addressWithOffset else cpu.registers[base]
-
-    inline fun CPU.saveAddressWithOffsetIfEnabled() {
-        if ((pre && instruction bit 21) || !pre)
-            setRegister(base, addressWithOffset)
-    }
-
-    inline fun perform(func: CPU.() -> Unit) {
-        cpu.func()
-    }
-}
-
-private inline fun memoryInstruction(crossinline func: MemoryAccessDsl.() -> Unit): CPU.() -> Unit =
-    {
-        MemoryAccessDsl(this).func()
-    }
-
-private inline fun hsbMemoryInstruction(crossinline func: MemoryAccessDsl.() -> Unit): CPU.() -> Unit =
-    {
-        MemoryAccessDsl(this) {
-            when (instruction bit 22) {
-                true -> instruction.ushr(4).and(0xF0).or(instruction and 0xF)
-                false -> registers[instruction and 0xF]
-            }
-        }.func()
-    }
 
 val armSwp = ARMInstruction(
     { "Swp" },
@@ -92,15 +34,31 @@ val armSwp = ARMInstruction(
 
 val armLdr = ARMInstruction(
     { "Ldr" },
-    memoryInstruction {
-        perform {
-            val value = when (instruction bit 22) {
-                true -> bus.read8(address).uInt
-                false -> bus.read32(address).rotateRight((address and 3) shl 3)
-            }
-            saveAddressWithOffsetIfEnabled()
-            setRegister(srcOrDst, value)
+    {
+        val instruction = pipelineHead
+
+        val base = (instruction ushr 16) and 0xF
+        val srcOrDst = (instruction ushr 12) and 0xF
+        val pre = instruction bit 24
+
+        val offset = when (instruction bit 25) {
+            true -> operand(instruction ushr 4, registers[instruction and 0xF])
+            false -> instruction and 0xFFF
         }
+        val addressWithOffset = when (instruction bit 23) {
+            true -> registers[base] + offset
+            false -> registers[base] - offset
+        }
+        val address = if (pre) addressWithOffset else registers[base]
+
+        val value = when (instruction bit 22) {
+            true -> bus.read8(address).uInt
+            false -> bus.read32(address).rotateRight((address and 3) shl 3)
+        }
+
+        if ((pre && instruction bit 21) || !pre)
+            setRegister(base, addressWithOffset)
+        setRegister(srcOrDst, value)
     }
 )
 
@@ -143,19 +101,36 @@ val armStr = ARMInstruction(
 )
 
 val armLdrhsb = ARMInstruction(
-    { "Ldrhsb" },
-    hsbMemoryInstruction { // LDRH LDRSH LDRB LDRSB
-        perform {
-            val value = when ((instruction ushr 5) and 0x3) {  // TODO
-                0 -> bus.read8(address).uInt
-                1 -> bus.read16(address).uInt.rotateRight((address and 1) shl 3)
-                2 -> bus.read8(address).toInt()
-                3 -> bus.read16(address).toInt() shr ((address and 1) shl 3)
-                else -> throw IllegalStateException("Unreachable")
-            }
-            saveAddressWithOffsetIfEnabled()
-            setRegister(srcOrDst, value)
+    { "Ldrhsb" }, // LDRH LDRSH LDRB LDRSB
+    {
+        val instruction = pipelineHead
+
+        val base = (instruction ushr 16) and 0xF
+        val srcOrDst = (instruction ushr 12) and 0xF
+        val pre = instruction bit 24
+
+        val offset = when (instruction bit 22) {
+            true -> instruction.ushr(4).and(0xF0).or(instruction and 0xF)
+            false -> registers[instruction and 0xF]
         }
+        val addressWithOffset = when (instruction bit 23) {
+            true -> registers[base] + offset
+            false -> registers[base] - offset
+        }
+        val address = if (pre) addressWithOffset else registers[base]
+
+
+        val value = when ((instruction ushr 5) and 0x3) {  // TODO
+            0 -> bus.read8(address).uInt
+            1 -> bus.read16(address).uInt.rotateRight((address and 1) shl 3)
+            2 -> bus.read8(address).toInt()
+            3 -> bus.read16(address).toInt() shr ((address and 1) shl 3)
+            else -> throw IllegalStateException("Unreachable")
+        }
+
+        if ((pre && instruction bit 21) || !pre)
+            setRegister(base, addressWithOffset)
+        setRegister(srcOrDst, value)
     }
 )
 
@@ -191,11 +166,17 @@ val armStrhsb = ARMInstruction(
     }
 )
 
-private inline fun registerList(instr: Int, reversed: Boolean): List<Int> =
-    (0..15)
-        .filter { instr bit it }
-        .let { if (reversed) it.reversed() else it }
+@JvmField
+val registerArray = IntArray(16) { -1 }
+private inline fun registerList(instr: Int, reversed: Boolean): IntArray {
+    if (reversed) {
+        for (it in 0 .. 15) if (instr bit it) registerArray[15 - it] = it else registerArray[15 - it] = -1
+    } else {
+        for (it in 0 .. 15) if (instr bit it) registerArray[it] = it else registerArray[it] = -1
+    }
 
+    return registerArray
+}
 
 val armStm = ARMInstruction(
     { "stm" },
@@ -209,10 +190,9 @@ val armStm = ARMInstruction(
 
         val base = (instr ushr 16) and 0xF
         val regs = registerList(instr, !up)
-        val first = (0..15).firstOrNull { instr bit it }
         var addr = registers[base]
 
-        var baseInRegList: Int? = null
+        var baseInRegList = -1
 
         if (pre) {
             when (up) {
@@ -223,7 +203,7 @@ val armStm = ARMInstruction(
 
         if (psrForceUser) setCPUMode(CPUMode.User)
 
-        if (regs.isEmpty()) {
+        if (instr and 0xFFFF == 0) {
             when {
                 !up && !pre -> addr -= 0x3C
                 !up && pre -> addr -= 0x3C
@@ -236,7 +216,9 @@ val armStm = ARMInstruction(
                 up && pre -> addr += 0x3C
             }
         } else {
-            regs.forEach {
+            for (it in regs) {
+                if (it == -1) continue
+
                 bus.write32(addr, registers[it])
                 if (it == base) {
                     baseInRegList = addr
@@ -254,15 +236,18 @@ val armStm = ARMInstruction(
         pc -= 4
 
         if (instr bit 21) {  // writeback
-            if (pre && regs.isNotEmpty()) {
+            if (pre && instr and 0xFFFF != 0) {
                 when (up) {
                     true -> addr -= 4
                     false -> addr += 4
                 }
             }
 
-            if (baseInRegList != null && first != base)
-                bus.write32(baseInRegList!!, addr)
+            if (
+                baseInRegList != -1 &&
+                instr.and(1.shl(base).minus(1)) != 0  // not first in the list (TODO: what if reverse?)
+            ) bus.write32(baseInRegList, addr)
+
             setRegister(base, addr)
         }
 
@@ -281,7 +266,7 @@ val armLdm = ARMInstruction(
         val regs = registerList(instr, !up)
         var addr = registers[base]
 
-        var baseInRegList: Int? = null
+        var baseInRegList = -1
 
         if (pre) {
             when (up) {
@@ -291,21 +276,22 @@ val armLdm = ARMInstruction(
         }
 
         if (psrForceUser) {
-            regs.find { it == 15 }?.let {
+            if (instr bit 15)
                 TODO("reg 15 psrForceUser arm stm")
-            }
 
             setCPUMode(CPUMode.User)
         }
 
-        if (regs.isEmpty()) {
+        if (instr and 0xFFFF == 0) {
             setRegister(15, bus.read32(addr))
             when (up) {
                 true -> addr += 0x40
                 false -> addr -= 0x40
             }
         } else {
-            regs.forEach {
+            for (it in regs) {
+                if (it == -1) continue
+
                 setRegister(it, bus.read32(addr))
                 if (it == base) {
                     baseInRegList = addr
@@ -328,7 +314,7 @@ val armLdm = ARMInstruction(
                 }
             }
 
-            if (baseInRegList == null) {
+            if (baseInRegList == -1) {
                 setRegister(base, addr)
             }
         }
