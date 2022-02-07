@@ -133,9 +133,10 @@ class PPU(
     fun mixBuffers(into: IntArray, backdrop: Int, pixel: Int) {
         val isEnabled = mixingIsEnabled[getCurrentWindow(pixel)]
 
+        var value = 0
         for (bufferIndex in 0 until 4) {
             if (isEnabled[bufferIndex] && lineBuffers[bufferIndex][pixel] != 0) {
-                into[pixel] = if (isEnabled[LUT_OBJ] && lineBuffers[bufferIndex + 4][pixel] != 0) {
+                value = if (isEnabled[LUT_OBJ] && lineBuffers[bufferIndex + 4][pixel] != 0) {
                     lineBuffers[bufferIndex + 4][pixel]
                 } else {
                     lineBuffers[bufferIndex][pixel]
@@ -143,14 +144,16 @@ class PPU(
 
                 break
             } else if (isEnabled[LUT_OBJ] && lineBuffers[bufferIndex + 4][pixel] != 0) {
-                into[pixel] = lineBuffers[bufferIndex + 4][pixel]
+                value = lineBuffers[bufferIndex + 4][pixel]
                 break
             }
         }
 
-        if (into[pixel] == 0) {
-            into[pixel] = backdrop
+        if (value == 0) {
+            value = backdrop
         }
+
+        into[pixel] = value
     }
 
     @JvmField  // WxH

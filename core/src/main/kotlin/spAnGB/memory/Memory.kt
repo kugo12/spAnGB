@@ -13,7 +13,6 @@ interface Memory {
     fun write32(address: Int, value: Int)
 
     companion object {
-        val stub: Memory = MemoryStub()
         val silentStub = object : Memory {
             override fun read8(address: Int): Byte = 0
             override fun read16(address: Int): Short = 0
@@ -22,6 +21,7 @@ interface Memory {
             override fun write16(address: Int, value: Short) {}
             override fun write32(address: Int, value: Int) {}
         }
+        val stub: Memory = silentStub // MemoryStub()
     }
 }
 
