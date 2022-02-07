@@ -3,7 +3,9 @@ package spAnGB.ppu.mmio
 import spAnGB.memory.mmio.SimpleMMIO
 import spAnGB.utils.bit
 
-class BackgroundControl : SimpleMMIO() {
+class BackgroundControl(
+    val index: Int
+) : SimpleMMIO() {
     inline val priority: Int get() = value and 0x3
     inline val characterBaseBlock: Int get() = value.and(0xC).ushr(2)
     inline val mosaic: Boolean get() = value bit 6

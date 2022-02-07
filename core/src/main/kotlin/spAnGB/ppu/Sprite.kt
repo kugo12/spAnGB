@@ -1,9 +1,6 @@
 package spAnGB.ppu
 
-import spAnGB.utils.bit
-import spAnGB.utils.toColor
-import spAnGB.utils.toInt
-import spAnGB.utils.uLong
+import spAnGB.utils.*
 
 fun PPU.renderSprites() {
     if (!displayControl.isObj) return
@@ -131,7 +128,7 @@ value class SpriteData(val value: Long) {
                 }
             }
             if (color != 0)
-                buffer[currentPixel] = palette.shortBuffer[color + paletteOffset].toColor()
+                buffer[currentPixel] = palette.shortBuffer[color + paletteOffset].toBufferColor()
         }
     }
 

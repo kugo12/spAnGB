@@ -17,7 +17,7 @@ value class BackgroundTextTile(val value: Int) {
 
 inline fun PPU.renderBgText(n: Int) {
     val control = bgControl[n]
-    val buffer = lineBuffers[control.priority]
+    val buffer = lineBuffers[n]
     val (bgWidth, bgHeight) = backgroundSizes[control.size]
 
     val tileMapOffset = control.characterBaseBlock * 16 * KiB
@@ -98,8 +98,8 @@ inline fun PPU.renderBgText(n: Int) {
 }
 
 fun PPU.renderBgMode0() {
-    if (displayControl.isBg3) renderBgText(3)
-    if (displayControl.isBg2) renderBgText(2)
-    if (displayControl.isBg1) renderBgText(1)
     if (displayControl.isBg0) renderBgText(0)
+    if (displayControl.isBg1) renderBgText(1)
+    if (displayControl.isBg2) renderBgText(2)
+    if (displayControl.isBg3) renderBgText(3)
 }

@@ -1,6 +1,5 @@
 package spAnGB.ppu.mmio
 
-import spAnGB.memory.Memory
 import spAnGB.memory.mmio.SimpleMMIO
 import spAnGB.utils.bit
 
@@ -33,4 +32,8 @@ class DisplayControl : SimpleMMIO() {
     inline val isWin0: Boolean get() = value bit 13
     inline val isWin1: Boolean get() = value bit 14
     inline val isWinObj: Boolean get() = value bit 15
+
+    inline val frameSelect: Int get() = value.ushr(4).and(1)
+
+    inline infix fun isBg(index: Int) = value bit (index + 8)
 }

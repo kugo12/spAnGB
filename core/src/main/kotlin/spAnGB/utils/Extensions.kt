@@ -19,10 +19,3 @@ inline val Short.uInt get() = toInt() and 0xFFFF
 inline val Short.uLong get() = toLong() and 0xFFFF
 
 inline val Int.uLong get() = toLong() and 0xFFFFFFFF
-
-inline fun Short.toColor() = toInt().let {
-    it.and(0x1F).shl(27)  // R
-        .or(it.and(0x3E0).shl(14))  // G
-        .or(it.and(0x7C00).shl(1))  // B
-        .or(0xFF)  // A
-}

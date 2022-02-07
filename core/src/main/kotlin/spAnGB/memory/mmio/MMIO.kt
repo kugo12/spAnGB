@@ -64,6 +64,10 @@ class MMIO(
             0x48, 0x49 -> bus.ppu.winIn
             0x4A, 0x4B -> bus.ppu.winOut
 
+            0x50, 0x51 -> bus.ppu.blend
+            0x52, 0x53 -> bus.ppu.alpha
+            0x54, 0x55 -> bus.ppu.brightness
+
             0xB0, 0xB2 -> bus.dma[0].source
             0xB4, 0xB6 -> bus.dma[0].destination
             0xB8, 0xBA -> bus.dma[0]

@@ -11,9 +11,10 @@ import spAnGB.ppu.bg.renderBgMode4
 import spAnGB.ppu.mmio.*
 import spAnGB.utils.KiB
 import spAnGB.utils.bit
-import spAnGB.utils.toColor
 import spAnGB.utils.uInt
 import java.nio.ByteBuffer
+
+// TODO: BIG REFACTORING
 
 const val HDRAW_CYCLES = 960L
 const val HBLANK_CYCLES = 272L
@@ -31,17 +32,15 @@ class PPU(
     val mmio: MMIO,
     val scheduler: Scheduler
 ) {
-    val framebuffer = framebuffer.asIntBuffer()
     val palette = RAM(1 * KiB)
     val vram = VRAM()
     val attributes = RAM(1 * KiB)
-    val sprites = attributes.byteBuffer.asLongBuffer()
 
     val displayControl = DisplayControl()
     val displayStat = DisplayStat()
     val vcount = VCount()
 
-    val bgControl = Array(4) { BackgroundControl() }
+    val bgControl = Array(4) { BackgroundControl(it) }
     val bgXOffset = Array(4) { BackgroundOffset() }
     val bgYOffset = Array(4) { BackgroundOffset() }
 
@@ -50,8 +49,19 @@ class PPU(
     val winIn = WindowInsideControl()
     val winOut = WindowOutsideControl()
 
-    // Bg - 0-3  Sprites - 4-7  Obj window - 8  Final - 9
-    val lineBuffers = Array(10) { IntArray(240) }
+    val alpha = BlendAlpha()
+    val blend = BlendControl()
+    val brightness = BlendBrightness()
+
+    // Bg - 0-3  Sprites - 4-7  Obj window - 8
+    val lineBuffers = Array(9) { IntArray(240) }  // TODO
+    val finalBuffer = IntArray(240)
+
+    val joinedSprites = IntArray(240)
+    val spritePriorities = IntArray(240)
+
+    val framebuffer = framebuffer.asIntBuffer()
+    val sprites = attributes.byteBuffer.asLongBuffer()
 
     val hdrawRef = ::hdraw
     val hblankRef = ::hblank
@@ -118,33 +128,91 @@ class PPU(
         mixingIsEnabled[3][LUT_SPECIAL] = winOut.isObjWinSpecialEffects
     }
 
-    fun renderMixedBuffers() {
-        val backdrop = palette.shortBuffer[0].toColor()
-        val finalBuffer = lineBuffers[9]
-        fillWindowLut()
-
+    fun joinSprites() {  // FIXME: this is a quick fix for an issue that needs more code refactoring in future
         for (pixel in 0 until 240) {
-            mixBuffers(finalBuffer, backdrop, pixel)
+            for (it in 4 until 8) {
+                if (lineBuffers[it][pixel] != 0) {
+                    joinedSprites[pixel] = lineBuffers[it][pixel]
+                    spritePriorities[pixel] = it - 4
+                    break
+                }
+            }
+        }
+    }
+
+    fun shouldBlend(bg: Int, isBd: Boolean, isObj: Boolean): Boolean { // FIXME
+        return (bg != -1 && blend isFirstBg bg) || (isBd && blend.firstBd) || (isObj && blend.firstObj)
+    }
+
+    fun Int.brightnessBlend(shouldBlend: Boolean) = // TODO: alpha blending needs more refactoring
+        if ((blend.mode == 2 || blend.mode == 3) && shouldBlend) {
+            val coefficient = brightness.coefficient
+            when (blend.mode) {
+                2 -> {
+                    transformColors { it + ((31 - it)*coefficient).ushr(4) }
+                }
+                3 -> {
+                    transformColors { it - (it*coefficient).ushr(4) }
+                }
+                else -> -1
+            }
+        } else this
+
+    fun renderMixedBuffers() {
+        joinSprites()
+
+        val sortedBackgrounds = bgControl
+            .filter { displayControl isBg it.index }
+            .sortedBy { it.priority }
+        val backdrop = palette.shortBuffer[0].toInt().brightnessBlend(shouldBlend(-1, true, false)).toColor()
+
+        if (displayControl.isWin0 || displayControl.isWin1 || displayControl.isWinObj) {
+            fillWindowLut()
+            for (pixel in 0 until 240) {
+                mixBuffers(sortedBackgrounds, backdrop, pixel)
+            }
+        } else {
+            for (pixel in 0 until 240) {
+
+                var color = 0
+
+                for (bg in sortedBackgrounds) {
+                    if (spritePriorities[pixel] <= bg.priority) {
+                        color = joinedSprites[pixel].brightnessBlend(shouldBlend(-1, false, true)).toColor()
+                        break
+                    }
+                    if (lineBuffers[bg.index][pixel] != 0) {
+                        color = lineBuffers[bg.index][pixel].brightnessBlend(shouldBlend(bg.index, false, false)).toColor()
+                        break
+                    }
+                }
+
+                if (color == 0) {
+                    color = backdrop
+                }
+
+                finalBuffer[pixel] = color
+            }
         }
 
         framebuffer.put(vcount.ly * 240, finalBuffer, 0, 240)
     }
 
-    fun mixBuffers(into: IntArray, backdrop: Int, pixel: Int) {
+    fun mixBuffers(bgs: List<BackgroundControl>, backdrop: Int, pixel: Int) {
         val isEnabled = mixingIsEnabled[getCurrentWindow(pixel)]
 
         var value = 0
-        for (bufferIndex in 0 until 4) {
-            if (isEnabled[bufferIndex] && lineBuffers[bufferIndex][pixel] != 0) {
-                value = if (isEnabled[LUT_OBJ] && lineBuffers[bufferIndex + 4][pixel] != 0) {
-                    lineBuffers[bufferIndex + 4][pixel]
+        for (bg in bgs) {
+            if (isEnabled[bg.index] && lineBuffers[bg.index][pixel] != 0) {
+                value = if (isEnabled[LUT_OBJ] && spritePriorities[pixel] <= bg.priority) {
+                    joinedSprites[pixel].brightnessBlend(shouldBlend(-1, false, true) && isEnabled[LUT_SPECIAL]).toColor()
                 } else {
-                    lineBuffers[bufferIndex][pixel]
+                    lineBuffers[bg.index][pixel].brightnessBlend(shouldBlend(bg.index, false, false) && isEnabled[LUT_SPECIAL]).toColor()
                 }
 
                 break
-            } else if (isEnabled[LUT_OBJ] && lineBuffers[bufferIndex + 4][pixel] != 0) {
-                value = lineBuffers[bufferIndex + 4][pixel]
+            } else if (isEnabled[LUT_OBJ] && spritePriorities[pixel] <= bg.priority) {
+                value = joinedSprites[pixel].brightnessBlend(shouldBlend(-1, false, true) && isEnabled[LUT_SPECIAL]).toColor()
                 break
             }
         }
@@ -153,7 +221,7 @@ class PPU(
             value = backdrop
         }
 
-        into[pixel] = value
+        finalBuffer[pixel] = value
     }
 
     @JvmField  // WxH
@@ -206,7 +274,7 @@ class PPU(
         val color = vram.byteBuffer[vramOffset].uInt
 
         if (color != 0)
-            buffer[pixelInBuffer] = palette.shortBuffer[color].toColor()
+            buffer[pixelInBuffer] = palette.shortBuffer[color].toBufferColor()
     }
 
     fun blit4BitTileRow(
@@ -262,11 +330,14 @@ class PPU(
         }
 
         if (color != 0)
-            buffer[pixelInBuffer] = palette.shortBuffer[color + paletteOffset].toColor()
+            buffer[pixelInBuffer] = palette.shortBuffer[color + paletteOffset].toBufferColor()
     }
 
     fun clearLineBuffers() {
         for (it in lineBuffers) it.fill(0)
+        finalBuffer.fill(0)
+        joinedSprites.fill(0)
+        spritePriorities.fill(255)
     }
 
 
