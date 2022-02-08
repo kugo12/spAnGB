@@ -28,7 +28,7 @@ subprojects {
 		withType<KotlinCompile> {
 			kotlinOptions {
 				freeCompilerArgs = listOf("-Xjsr305=strict")
-				jvmTarget = "1.8"
+				jvmTarget = "17"
 			}
 		}
 
@@ -37,5 +37,5 @@ subprojects {
 		}
 	}
 
-	java.sourceCompatibility = JavaVersion.VERSION_1_8
+	java.sourceCompatibility = JavaVersion.VERSION_17
 }

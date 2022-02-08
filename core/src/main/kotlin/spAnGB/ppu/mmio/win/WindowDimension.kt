@@ -1,4 +1,4 @@
-package spAnGB.ppu.mmio
+package spAnGB.ppu.mmio.win
 
 import spAnGB.memory.Memory
 import spAnGB.utils.uInt

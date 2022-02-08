@@ -1,4 +1,4 @@
-package spAnGB.ppu.mmio
+package spAnGB.ppu.mmio.blend
 
 import spAnGB.memory.mmio.SimpleMMIO
 import spAnGB.utils.bit

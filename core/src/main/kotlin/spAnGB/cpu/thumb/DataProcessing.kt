@@ -151,7 +151,7 @@ val thumbTst = ThumbInstruction(
 val thumbNeg = ThumbInstruction(
     { "Neg" },
     simpleInstruction {
-        C = true
+        C = false
         V = false
         -operand
     }

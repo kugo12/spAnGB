@@ -1,6 +1,7 @@
 package spAnGB.memory.mmio
 
 import spAnGB.memory.Memory
+import spAnGB.utils.bit
 import spAnGB.utils.uInt
 
 abstract class SimpleMMIO(  // TODO: Remove this in future
@@ -16,7 +17,11 @@ abstract class SimpleMMIO(  // TODO: Remove this in future
     override fun read32(address: Int): Int = value
 
     override fun write8(address: Int, value: Byte) {
-        TODO("Not yet implemented")
+        if (address bit 0) {  // high
+            this.value = (this.value and 0xFF00.inv()) or (value.uInt.shl(8))
+        } else {
+            this.value = (this.value and 0xFF.inv()) or (value.uInt)
+        }
     }
 
     override fun write16(address: Int, value: Short) {

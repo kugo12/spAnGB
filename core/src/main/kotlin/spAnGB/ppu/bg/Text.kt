@@ -1,11 +1,17 @@
-@file:Suppress("NOTHING_TO_INLINE")
-
 package spAnGB.ppu.bg
 
 import spAnGB.ppu.PPU
 import spAnGB.utils.KiB
 import spAnGB.utils.bit
 
+
+// WxH
+val textBackgroundSizes = arrayOf(
+    intArrayOf(256, 256),
+    intArrayOf(512, 256),
+    intArrayOf(256, 512),
+    intArrayOf(512, 512),
+)
 
 @JvmInline
 value class BackgroundTextTile(val value: Int) {
@@ -15,10 +21,10 @@ value class BackgroundTextTile(val value: Int) {
     inline val palette: Int get() = value.and(0xF000).ushr(12)
 }
 
-inline fun PPU.renderBgText(n: Int) {
+fun PPU.renderBgText(n: Int) {  // TODO: refactoring
     val control = bgControl[n]
     val buffer = lineBuffers[n]
-    val (bgWidth, bgHeight) = backgroundSizes[control.size]
+    val (bgWidth, bgHeight) = textBackgroundSizes[control.size]
 
     val tileMapOffset = control.characterBaseBlock * 16 * KiB
     val mapOffset = control.screenBaseBlock * 1 * KiB
@@ -95,11 +101,4 @@ inline fun PPU.renderBgText(n: Int) {
             )
         }
     }
-}
-
-fun PPU.renderBgMode0() {
-    if (displayControl.isBg0) renderBgText(0)
-    if (displayControl.isBg1) renderBgText(1)
-    if (displayControl.isBg2) renderBgText(2)
-    if (displayControl.isBg3) renderBgText(3)
 }

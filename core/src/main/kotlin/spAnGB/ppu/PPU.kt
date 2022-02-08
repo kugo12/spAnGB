@@ -4,11 +4,18 @@ import spAnGB.Scheduler
 import spAnGB.memory.RAM
 import spAnGB.memory.mmio.Interrupt
 import spAnGB.memory.mmio.MMIO
-import spAnGB.ppu.bg.renderBgMode0
-import spAnGB.ppu.bg.renderBgMode1
-import spAnGB.ppu.bg.renderBgMode3
-import spAnGB.ppu.bg.renderBgMode4
+import spAnGB.ppu.bg.*
 import spAnGB.ppu.mmio.*
+import spAnGB.ppu.mmio.bg.BackgroundControl
+import spAnGB.ppu.mmio.bg.BackgroundCoordinate
+import spAnGB.ppu.mmio.bg.BackgroundOffset
+import spAnGB.ppu.mmio.bg.BackgroundParameter
+import spAnGB.ppu.mmio.blend.BlendAlpha
+import spAnGB.ppu.mmio.blend.BlendBrightness
+import spAnGB.ppu.mmio.blend.BlendControl
+import spAnGB.ppu.mmio.win.WindowDimension
+import spAnGB.ppu.mmio.win.WindowInsideControl
+import spAnGB.ppu.mmio.win.WindowOutsideControl
 import spAnGB.utils.KiB
 import spAnGB.utils.bit
 import spAnGB.utils.uInt
@@ -43,6 +50,10 @@ class PPU(
     val bgControl = Array(4) { BackgroundControl(it) }
     val bgXOffset = Array(4) { BackgroundOffset() }
     val bgYOffset = Array(4) { BackgroundOffset() }
+    val bgMatrix = Array(8) { BackgroundParameter() }
+
+    // 2x 2y 3x 3y
+    val bgReference = Array(4) { BackgroundCoordinate() }
 
     val windowHorizontal = Array(2) { WindowDimension() }
     val windowVertical = Array(2) { WindowDimension() }
@@ -224,14 +235,6 @@ class PPU(
         finalBuffer[pixel] = value
     }
 
-    @JvmField  // WxH
-    val backgroundSizes = listOf(
-        256 to 256,
-        512 to 256,
-        256 to 512,
-        512 to 512,
-    )
-
     fun blit8BitTileRow(
         buffer: IntArray,
         tileRowOffset: Int,
@@ -340,7 +343,6 @@ class PPU(
         spritePriorities.fill(255)
     }
 
-
     fun checkVCounter() {
         val vc = vcount.ly == displayStat.lyc
 
@@ -357,6 +359,7 @@ class PPU(
         when (displayControl.bgMode) {
             0 -> renderBgMode0()
             1 -> renderBgMode1()
+            2 -> renderBgMode2()
             3 -> renderBgMode3()
             4 -> renderBgMode4()
             else -> TODO("Background mode ${displayControl.bgMode} not implemented")
@@ -378,6 +381,8 @@ class PPU(
         checkVCounter()
 
         if (vcount.ly >= VDRAW_HEIGHT) {
+            bgReference.lock()
+
             scheduler.schedule(SCANLINE_CYCLES, vblankRef, taskIndex)
 
             displayStat[DisplayStatFlag.HBLANK] = false
@@ -387,6 +392,7 @@ class PPU(
                 mmio.ir[Interrupt.VBlank] = true
             }
         } else {
+            bgReference.increment()
             scheduler.schedule(HDRAW_CYCLES, hdrawRef, taskIndex)
         }
     }
@@ -395,6 +401,9 @@ class PPU(
         vcount.ly += 1
 
         if (vcount.ly >= TOTAL_HEIGHT) {
+            bgReference.unlock()
+            bgReference.copyToInternal()
+
             scheduler.schedule(HDRAW_CYCLES, hdrawRef, taskIndex)
 
             displayStat[DisplayStatFlag.VBLANK] = false
@@ -404,5 +413,12 @@ class PPU(
         }
 
         checkVCounter()
+    }
+
+    fun Array<BackgroundCoordinate>.increment() {
+        this[0].internal += bgMatrix[1].param
+        this[1].internal += bgMatrix[3].param
+        this[2].internal += bgMatrix[5].param
+        this[3].internal += bgMatrix[7].param
     }
 }
