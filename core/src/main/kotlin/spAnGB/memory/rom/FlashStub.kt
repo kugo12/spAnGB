@@ -30,10 +30,10 @@ class FlashStub: Memory {
     }
 
     override fun write16(address: Int, value: Short) {
-        shortBuffer.put(address and 0xFFFF, value)
+//        shortBuffer.put(address and 0xFFFF, value)
     }
 
     override fun write32(address: Int, value: Int) {
-        intBuffer.put(address and 0xFFFF, value)
+//        intBuffer.put(address and 0xFFFF, value)
     }
 }

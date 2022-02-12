@@ -7,10 +7,10 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 class Bios(
-    path: String
+    file: File
 ): Memory {
     val size: Int
-    val rom: ByteBuffer = File(path).readBytes().let {
+    val rom: ByteBuffer = file.readBytes().let {
         assert(it.size == 16*KiB) { "Invalid bios file" }
         if (it.size != 16*KiB) {
             throw IllegalStateException("Invalid bios file")

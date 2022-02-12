@@ -5,7 +5,8 @@ typealias SchedulerTask = (Int) -> Unit
 const val taskQueueSize = 16
 
 class Scheduler {
-    private var counter = 0L
+    var counter = 0L
+    private var queueSize = 0
 
     val taskCounters: LongArray = LongArray(taskQueueSize) { -1L }
     val tasks: Array<SchedulerTask?> = arrayOfNulls(taskQueueSize)
@@ -20,7 +21,7 @@ class Scheduler {
         taskCounters[index] = -1
     }
 
-    fun schedule(after: Long, task: SchedulerTask?) {
+    fun schedule(after: Long, task: SchedulerTask?): Int {
         val after = counter + after
 
         var index = 0
@@ -28,21 +29,19 @@ class Scheduler {
             if (taskCounters[index] == -1L) { // this throws if queue is too small
                 taskCounters[index] = after
                 tasks[index] = task
+                if (index > queueSize) queueSize = index
 
-                return
+                return index
             } else ++index
     }
 
 
     fun tick() {
-        var index = 0
-        while (index < taskQueueSize) {
+        for (index in 0 .. queueSize) {
             val taskCounter = taskCounters[index]
-            when {
-                taskCounter == -1L -> break
-                taskCounter <= counter -> tasks[index]!!(index)
-            }
-            ++index
+
+            if (taskCounter == -1L) break
+            if (taskCounter <= counter) tasks[index]!!(index)
         }
 
         counter += 1  // TODO

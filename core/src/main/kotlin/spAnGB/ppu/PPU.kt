@@ -36,6 +36,7 @@ private const val LUT_SPECIAL = 5
 
 class PPU(
     framebuffer: ByteBuffer,
+    val blitFramebuffer: () -> Unit,
     val mmio: MMIO,
     val scheduler: Scheduler
 ) {
@@ -175,6 +176,7 @@ class PPU(
         val sortedBackgrounds = bgControl
             .filter { displayControl isBg it.index }
             .sortedBy { it.priority }
+            .toTypedArray()
         val backdrop = palette.shortBuffer[0].toInt().brightnessBlend(shouldBlend(-1, true, false)).toColor()
 
         if (displayControl.isWin0 || displayControl.isWin1 || displayControl.isWinObj) {
@@ -209,7 +211,7 @@ class PPU(
         framebuffer.put(vcount.ly * 240, finalBuffer, 0, 240)
     }
 
-    fun mixBuffers(bgs: List<BackgroundControl>, backdrop: Int, pixel: Int) {
+    fun mixBuffers(bgs: Array<BackgroundControl>, backdrop: Int, pixel: Int) {
         val isEnabled = mixingIsEnabled[getCurrentWindow(pixel)]
 
         var value = 0
@@ -384,6 +386,7 @@ class PPU(
             bgReference.lock()
 
             scheduler.schedule(SCANLINE_CYCLES, vblankRef, taskIndex)
+            blitFramebuffer()
 
             displayStat[DisplayStatFlag.HBLANK] = false
             displayStat[DisplayStatFlag.VBLANK] = true

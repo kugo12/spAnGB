@@ -33,19 +33,19 @@ class MainClasss : KtxGame<KtxScreen>() {
 
 class FirstScreen : KtxScreen {
     private val fb = BasicFramebufferActor()
-    private val emulator = spAnGB(fb.framebuffer)
+    private val emulator = spAnGB(fb.framebuffer, fb::blitFramebuffer)
 
     val stage = stage().apply {
         Gdx.input.inputProcessor = this
         addActor(fb)
     }
-    private val debugger = Debugger(emulator, stage)
+//    private val debugger = Debugger(emulator, stage)
 
     override fun render(delta: Float) {
         clearScreen(0f, 0f, .25f)
         stage.draw()
         emulator.bus.mmio.keyInput.poll()
-        (0..800000).forEach { emulator.tick() }
+        (0..300000).forEach { emulator.tick() }
         stage.act()
     }
 
@@ -60,15 +60,15 @@ class FirstScreen : KtxScreen {
 
 class BasicFramebufferActor: Actor() {
     private val pixmap = Pixmap(240, 160, Pixmap.Format.RGBA8888)
-    val framebuffer: ByteBuffer = pixmap.pixels
-
     private val texture = Texture(pixmap)
 
-    override fun act(delta: Float) {
+    val framebuffer: ByteBuffer = pixmap.pixels
+
+    fun blitFramebuffer() {
         texture.draw(pixmap, 0, 0)
     }
 
     override fun draw(batch: Batch, parentAlpha: Float) {
-        batch.draw(texture, 0f, 0f, 480f, 320f)
+        batch.draw(texture, 0f, 0f, 1280f, 720f)
     }
 }

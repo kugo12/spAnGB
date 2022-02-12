@@ -10,7 +10,7 @@ import spAnGB.MainClasss
 fun main() {
     Lwjgl3Application(MainClasss(), Lwjgl3ApplicationConfiguration().apply {
         setTitle("spAnGB")
-        setWindowedMode(1920, 1080)
+        setWindowedMode(1280, 720)
         setWindowIcon(*(
                 arrayOf(128, 64, 32, 16)
                     .map { "libgdx$it.png" }

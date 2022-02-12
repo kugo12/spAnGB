@@ -14,7 +14,8 @@ import kotlin.contracts.contract
 
 class Bus(
     framebuffer: ByteBuffer,
-    val bios: Bios = Bios("bios.bin"),
+    blitFramebuffer: () -> Unit,
+    val bios: Bios,
     @JvmField
     val cartridge: Cartridge,
     val scheduler: Scheduler
@@ -31,7 +32,7 @@ class Bus(
     @JvmField
     val mmio = MMIO(this)
 
-    val ppu = PPU(framebuffer, mmio, scheduler)
+    val ppu = PPU(framebuffer, blitFramebuffer, mmio, scheduler)
 
     // This cursed stuff is for inlining
     override fun read8(address: Int): Byte = get(address) { read8(address and 0x0FFFFFFF) }

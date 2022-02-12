@@ -24,7 +24,7 @@ fun PPU.renderBgMode2() {
 
 fun PPU.renderBgMode3() {
     val offset = vcount.ly * 240
-    val buffer = lineBuffers[0]
+    val buffer = lineBuffers[2]
 
     for (it in 0 until 240) {
         buffer[it] = vram.shortBuffer[it + offset].toBufferColor()
@@ -32,7 +32,7 @@ fun PPU.renderBgMode3() {
 }
 
 fun PPU.renderBgMode4() {
-    val buffer = lineBuffers[0]
+    val buffer = lineBuffers[2]
     val offset = vcount.ly * 240 +
             displayControl.frameSelect * 0xA000
 
