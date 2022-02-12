@@ -26,7 +26,7 @@ class DataProcessingDsl {
 
     fun initialize(cpu: CPU) {
         this.cpu = cpu
-        this.instruction = cpu.pipelineHead
+        this.instruction = cpu.instr
 
         destinationRegister = (instruction ushr 12) and 0xF
         secondOperand = when {

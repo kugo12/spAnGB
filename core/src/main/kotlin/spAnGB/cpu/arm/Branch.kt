@@ -16,7 +16,7 @@ private inline fun extendOffset(offset: Int): Int {
 val armBx = ARMInstruction(
     { "bx ${registers[it and 0xF].hex}" },
     {
-        pc = registers[pipelineHead and 0xF]
+        pc = registers[instr and 0xF]
         changeState(pc and 1)
     }
 )
@@ -24,7 +24,7 @@ val armBx = ARMInstruction(
 val armB = ARMInstruction(
     { "b ${pc.hex} + ${extendOffset(it)} = ${(pc+extendOffset(it)).hex}" },
     {
-        pc += extendOffset(pipelineHead)
+        pc += extendOffset(instr)
         armRefill()
     }
 )
@@ -33,7 +33,7 @@ val armBl = ARMInstruction(
     { "bl ${pc.hex} + ${extendOffset(it)} = ${(pc+extendOffset(it)).hex}" },
     {
         lr = pc - 4
-        pc += extendOffset(pipelineHead)
+        pc += extendOffset(instr)
         armRefill()
     }
 )

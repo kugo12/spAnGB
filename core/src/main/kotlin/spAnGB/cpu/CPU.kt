@@ -31,9 +31,9 @@ class CPU(
     val _registers = IntArray(7)
 
     @JvmField
-    val pipeline = IntArray(3)
+    val pipeline = IntArray(2)
 
-    inline val pipelineHead: Int get() = pipeline[2]
+    inline val pipelineHead: Int get() = pipeline[1]
 
     @JvmField
     var cpsr: Int = 0
@@ -72,8 +72,8 @@ class CPU(
     val lutCondition = flagLutFactory()
 
     // TODO: remove this
-    inline val instr get() = pipelineHead
-    inline val instruction get() = pipelineHead
+    var instr = 0
+    var instruction = 0
 
     init {
         registers[0] = 0x08000000
@@ -84,7 +84,7 @@ class CPU(
         registerBanks[CPUMode.Interrupt][0] = 0x3007FA0
         cpsr = 0x6000001F
 
-        armFill()
+        armRefill()
     }
 
     inline fun setRegister(index: Int, value: Int) {
@@ -106,18 +106,18 @@ class CPU(
         if (halt.isHalted) return
 
         val op = pipelineHead
+        instr = op
+        instruction = op
         if (op == 0) TODO("[CPU] OpCode 0 at +- ${pc.hex}")
 
         if (state == CPUState.THUMB) {
+            thumbStep()
             lutThumb[(op ushr 6) and 0x3FF](this)
         } else if (checkCondition(op ushr 28)) {
-            lutARM[((op and 0xF0) ushr 4) or ((op ushr 16) and 0xFF0)](this)
-        }
-
-        if (state == CPUState.ARM) {
             armStep()
+            lutARM[((op and 0xF0) ushr 4) or ((op ushr 16) and 0xFF0)](this)
         } else {
-            thumbStep()
+            armStep()
         }
     }
 
@@ -196,7 +196,7 @@ class CPU(
             val pending = (mmio.ir.value and mmio.ie.value) and 0x3FFF
 
             if (pending != 0) {
-                val link = pc - if (state == CPUState.ARM) 4 else 0
+                val link = pc + if (state == CPUState.ARM) 0 else 2  // ??
                 val cpsrCopy = cpsr
 
                 setCPUMode(CPUMode.Interrupt)
@@ -208,18 +208,11 @@ class CPU(
                 this[CPUFlag.T] = false
                 state = CPUState.ARM
 
-                flush()
-                armFill()
+                armRefill()
 
                 halt.isHalted = false
             }
         }
-    }
-
-    fun flush() {
-        pipeline[0] = 0
-        pipeline[1] = 0
-        pipeline[2] = 0
     }
 
     fun thumbRefill() {
@@ -230,18 +223,9 @@ class CPU(
     }
 
     fun thumbStep() {
-        pipeline[2] = pipeline[1]
         pipeline[1] = pipeline[0]
         pc += 2
         pipeline[0] = bus.read16(pc).toInt()
-    }
-
-    fun armFill() {
-        pipeline[2] = bus.read32(pc)
-        pc += 4
-        pipeline[1] = bus.read32(pc)
-        pc += 4
-        pipeline[0] = bus.read32(pc)
     }
 
     fun armRefill() {
@@ -252,7 +236,6 @@ class CPU(
     }
 
     fun armStep() {
-        pipeline[2] = pipeline[1]
         pipeline[1] = pipeline[0]
         pc += 4
         pipeline[0] = bus.read32(pc)

@@ -49,17 +49,14 @@ class CPUInstructionWindow(val cpu: CPU) : VisWindow("CPU Instructions"), KTable
                 this@CPUInstructionWindow.addresses = listOf(
                     visLabel(""),
                     visLabel(""),
-                    visLabel(""),
                 )
                 row()
 
-                visLabel("+2")
                 visLabel("+1")
                 visLabel("head")
                 row()
                 this@CPUInstructionWindow.pipeline =
                     listOf(
-                        visLabel("aaaaaaaaaaaa"),
                         visLabel("aaaaaaaaaaaa"),
                         visLabel("aaaaaaaaaaaa")
                     )

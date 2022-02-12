@@ -35,8 +35,6 @@ val armSwp = ARMInstruction(
 val armLdr = ARMInstruction(
     { "Ldr" },
     {
-        val instruction = pipelineHead
-
         val base = (instruction ushr 16) and 0xF
         val srcOrDst = (instruction ushr 12) and 0xF
         val pre = instruction bit 24
@@ -103,8 +101,6 @@ val armStr = ARMInstruction(
 val armLdrhsb = ARMInstruction(
     { "Ldrhsb" }, // LDRH LDRSH LDRB LDRSB
     {
-        val instruction = pipelineHead
-
         val base = (instruction ushr 16) and 0xF
         val srcOrDst = (instruction ushr 12) and 0xF
         val pre = instruction bit 24
