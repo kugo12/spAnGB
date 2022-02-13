@@ -1,5 +1,6 @@
 package spAnGB.memory.rom
 
+import spAnGB.memory.Bus
 import spAnGB.memory.Memory
 import java.io.File
 import java.nio.ByteBuffer
@@ -12,7 +13,8 @@ import java.nio.charset.StandardCharsets
 val test = listOf("EEPROM_V", "SRAM_V", "FLASH_V", "FLASH512_V", "FLASH1M_V")
 
 class Cartridge(
-    file: File
+    file: File,
+    val bus: Bus,
 ) : Memory {
     val byteBuffer: ByteBuffer
     val intBuffer: IntBuffer
@@ -21,7 +23,7 @@ class Cartridge(
     val title: String
     val size: Int
 
-    val persistence: Memory = FlashStub()
+    val persistence: Memory
 
     init {
         val rom = file.readBytes()
@@ -30,9 +32,13 @@ class Cartridge(
             throw IllegalStateException("Invalid rom file")
         }
 
-        rom.toString(Charset.defaultCharset()).findAnyOf(test)?.let { (_, type) ->
-//            TODO("$type not supported rn")
-        }
+        val persistenceType = rom.toString(Charset.defaultCharset()).findAnyOf(test)
+        persistence = persistenceType?.let { (_, type) ->
+            when (type) {
+                "SRAM_V" -> SRAM()
+                else -> TODO("$type not supported rn")
+            }
+        } ?: Memory.silentStub
 
         title = rom
             .slice(0xA0..0xAB)
@@ -56,22 +62,23 @@ class Cartridge(
 
     override fun read8(address: Int): Byte {
         val addr = address and 0x1FFFFFF
-        if (addr >= size) {  // TODO
-            return 0
+        if (addr >= size) {
+            return (addr ushr 1).toByte()
         }
         return byteBuffer[addr]
     }
     override fun read16(address: Int): Short {
         val addr = address and 0x1FFFFFF
-        if (addr >= size - 2) {  // TODO
-            return 0
+        if (addr >= size - 2) {
+            return (addr ushr 1).toShort()
         }
         return shortBuffer[addr ushr 1]
     }
     override fun read32(address: Int): Int {
         val addr = address and 0x1FFFFFF
-        if (addr >= size - 4) {  // TODO
-            return 0
+        if (addr >= size - 4) {
+            val low = addr.ushr(1).and(1.inv()) and 0xFFFF
+            return low or (low + 1).shl(16)
         }
         return intBuffer[addr ushr 2]
     }

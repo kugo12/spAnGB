@@ -4,16 +4,27 @@ import spAnGB.memory.Bus
 import spAnGB.memory.Memory
 import spAnGB.memory.dma.mmio.DMAAddress
 import spAnGB.utils.bit
-import spAnGB.utils.hex
 import spAnGB.utils.uInt
-import kotlin.experimental.and
 
-class DMA(  // It is dma control by itself
+class DMALatch {
+    var count = 0
+    var source = 0
+    var destination = 0
+    var last = 0
+}
+
+class DMA(
+    // It is dma control by itself
     val bus: Bus,
-    val mask: Int = 0x3FFF
+    val index: Int
 ) : Memory {
-    val destination = DMAAddress()
-    val source = DMAAddress()
+    var active: Boolean = false
+    val mask = if (index == 3) 0xFFFF else 0x3FFF
+
+    val destination = DMAAddress(if (index == 3) 0xFFF else 0x7FF)
+    val source = DMAAddress(if (index == 0) 0x7FF else 0xFFF)
+
+    val latch = DMALatch()
 
     enum class AddrControl {
         Increment, Decrement, Fixed, Reload;
@@ -31,18 +42,12 @@ class DMA(  // It is dma control by itself
         }
     }
 
-    //    Bit   Expl.
-//    0-4   Not used
-//    5-6   Dest Addr Control  (0=Increment,1=Decrement,2=Fixed,3=Increment/Reload)
-//    7-8   Source Adr Control (0=Increment,1=Decrement,2=Fixed,3=Prohibited)
-//    9     DMA Repeat                   (0=Off, 1=On) (Must be zero if Bit 11 set)
-//    10    DMA Transfer Type            (0=16bit, 1=32bit)
+// TODO
 //    11    Game Pak DRQ  - DMA3 only -  (0=Normal, 1=DRQ <from> Game Pak, DMA3)
 //    12-13 DMA Start Timing  (0=Immediately, 1=VBlank, 2=HBlank, 3=Special)
 //    The 'Special' setting (Start Timing=3) depends on the DMA channel:
 //    DMA0=Prohibited, DMA1/DMA2=Sound FIFO, DMA3=Video Capture
 //    14    IRQ upon end of Word Count   (0=Disable, 1=Enable)
-//    15    DMA Enable                   (0=Off, 1=On)
     var value = 0
 
     val destAddrControl: AddrControl get() = AddrControl.values[(value ushr 5) and 3]
@@ -51,7 +56,12 @@ class DMA(  // It is dma control by itself
     val is32Bit: Boolean get() = value bit 10
     val startTiming: DMAStart get() = DMAStart.values[(value ushr 12) and 3]
     val irqEnabled: Boolean get() = value bit 14
-    val enabled: Boolean get() = value bit 15
+    var enabled: Boolean
+        get() = value bit 15
+        set(newValue) {
+            value = value and (1.shl(15).inv())
+            if (newValue) value = value or (1.shl(15))
+        }
 
 
     var count = 0
@@ -60,7 +70,7 @@ class DMA(  // It is dma control by itself
         TODO("Not yet implemented")
     }
 
-    override fun read16(address: Int): Short {
+    override fun read16(address: Int): Short {  // FIXME
         return count.toShort()
 //        TODO("Not yet implemented")
     }
@@ -75,53 +85,90 @@ class DMA(  // It is dma control by itself
 
     override fun write16(address: Int, value: Short) {
         if (address bit 1) {
+            val wasEnabled = enabled
             this.value = value.toInt()
-            if (enabled) transferImmediately()
+            if (!wasEnabled && enabled) {
+                latch.count = count
+                latch.source = source.value
+                latch.destination = destination.value
+
+                if (startTiming == DMAStart.Immediate) transfer()
+            }
         } else {
             count = value.toInt() and mask
             if (count == 0) count = mask + 1
         }
     }
 
-    override fun write32(address: Int, value: Int) { TODO() }
+    override fun write32(address: Int, value: Int) {
+        TODO()
+    }
 
-    fun transferImmediately() {
-        // 1220 memory tests
-        // 4492 dma
-        if (is32Bit) {
-            destination.value = destination.value and 3.inv()
-            source.value = source.value and 3.inv()
+    fun transfer() {
+        active = true
+        if (latch.source ushr 24 in 0x8 .. 0xD) value = value and ((3 shl 7).inv())
+        if (is32Bit) transferWords() else transferHalfWords()
+        active = false
+    }
 
-            (0 until count).forEach {
-                bus.write32(
-                    getDestination(it * 4),
-                    bus.read32(getSource(it * 4))
-                )
-            }
+    fun transferWords() {
+        latch.destination = latch.destination and 3.inv()
+        latch.source = latch.source and 3.inv()
+
+        for (it in 0 until latch.count) {
+            val source = getSource(it * 4)
+            if (source >= 0x2000000)
+                latch.last = bus.read32(source)
+
+            bus.write32(
+                getDestination(it * 4),
+                latch.last
+            )
+        }
+
+        endTransfer()
+    }
+
+    fun transferHalfWords() {
+        latch.destination = latch.destination and 1.inv()
+        latch.source = latch.source and 1.inv()
+
+        for (it in 0 until latch.count) {
+            val source = getSource(it * 2)
+            if (source >= 0x2000000)
+                latch.last = bus.read16(source).uInt.let { it or it.shl(16) }
+
+            val dest = getDestination(it * 2)
+            bus.write16(
+                dest,
+                latch.last.ushr(dest.and(2) shl 3).toShort()
+            )
+        }
+
+        endTransfer()
+    }
+
+    fun endTransfer() {
+        if (!repeat || startTiming == DMAStart.Immediate) {
+            enabled = false
         } else {
-            destination.value = destination.value and 1.inv()
-            source.value = source.value and 1.inv()
-
-            (0 until count).forEach {
-                bus.write16(
-                    getDestination(it * 2),
-                    bus.read16(getSource(it * 2))
-                )
+            latch.count = count
+            if (destAddrControl == AddrControl.Reload) {
+                latch.destination = destination.value
             }
         }
     }
 
     inline fun getDestination(offset: Int) = when (destAddrControl) {
-        AddrControl.Increment -> destination.value + offset
-        AddrControl.Decrement -> destination.value - offset
-        AddrControl.Fixed -> destination.value
-        AddrControl.Reload -> destination.value + offset  // TODO
+        AddrControl.Increment -> latch.destination + offset
+        AddrControl.Decrement -> latch.destination - offset
+        AddrControl.Fixed -> latch.destination
+        AddrControl.Reload -> latch.destination + offset
     }
 
     inline fun getSource(offset: Int) = when (sourceAddrControl) {
-        AddrControl.Increment -> source.value + offset
-        AddrControl.Decrement -> source.value - offset
-        AddrControl.Fixed -> source.value
-        AddrControl.Reload -> source.value + offset  // TODO
+        AddrControl.Increment -> latch.source + offset
+        AddrControl.Decrement -> latch.source - offset
+        else -> latch.source
     }
 }

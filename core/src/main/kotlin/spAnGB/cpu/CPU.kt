@@ -6,6 +6,7 @@ import spAnGB.cpu.arm.ARMOpFactory
 import spAnGB.cpu.thumb.ThumbOpFactory
 import spAnGB.memory.Bus
 import spAnGB.utils.hex
+import spAnGB.utils.uInt
 
 
 const val CLOCK_SPEED = 16777216
@@ -75,7 +76,7 @@ class CPU(
     var instr = 0
     var instruction = 0
 
-    init {
+    fun reset() {
         registers[0] = 0x08000000
         registers[1] = 0xEA
         registers[13] = 0x3007F00
@@ -217,15 +218,15 @@ class CPU(
 
     fun thumbRefill() {
         pc = pc and (1.inv())
-        pipeline[1] = bus.read16(pc).toInt()
+        pipeline[1] = bus.read16(pc).uInt
         pc += 2
-        pipeline[0] = bus.read16(pc).toInt()
+        pipeline[0] = bus.read16(pc).uInt
     }
 
     fun thumbStep() {
         pipeline[1] = pipeline[0]
         pc += 2
-        pipeline[0] = bus.read16(pc).toInt()
+        pipeline[0] = bus.read16(pc).uInt
     }
 
     fun armRefill() {

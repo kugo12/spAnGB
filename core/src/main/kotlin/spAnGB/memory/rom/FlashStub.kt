@@ -2,6 +2,8 @@ package spAnGB.memory.rom
 
 import spAnGB.memory.Memory
 import spAnGB.utils.KiB
+import spAnGB.utils.uInt
+import spAnGB.utils.uShort
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 

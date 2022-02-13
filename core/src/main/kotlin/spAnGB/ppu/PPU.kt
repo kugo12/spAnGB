@@ -1,9 +1,12 @@
 package spAnGB.ppu
 
 import spAnGB.Scheduler
-import spAnGB.memory.RAM
+import spAnGB.memory.dma.DMAManager
 import spAnGB.memory.mmio.Interrupt
 import spAnGB.memory.mmio.MMIO
+import spAnGB.memory.ram.Palette
+import spAnGB.memory.ram.OAM
+import spAnGB.memory.ram.VRAM
 import spAnGB.ppu.bg.*
 import spAnGB.ppu.mmio.*
 import spAnGB.ppu.mmio.bg.BackgroundControl
@@ -38,15 +41,16 @@ class PPU(
     framebuffer: ByteBuffer,
     val blitFramebuffer: () -> Unit,
     val mmio: MMIO,
-    val scheduler: Scheduler
+    val scheduler: Scheduler,
+    val dmaManager: DMAManager
 ) {
-    val palette = RAM(1 * KiB)
-    val vram = VRAM()
-    val attributes = RAM(1 * KiB)
-
     val displayControl = DisplayControl()
     val displayStat = DisplayStat()
     val vcount = VCount()
+
+    val palette = Palette()
+    val vram = VRAM(displayControl)
+    val attributes = OAM()
 
     val bgControl = Array(4) { BackgroundControl(it) }
     val bgXOffset = Array(4) { BackgroundOffset() }
@@ -370,6 +374,7 @@ class PPU(
         renderSprites()
         renderMixedBuffers()
 
+        scheduler.schedule(-1, dmaManager.hblankTask)
         scheduler.schedule(HBLANK_CYCLES, hblankRef, taskIndex)
 
         displayStat[DisplayStatFlag.HBLANK] = true
@@ -385,6 +390,7 @@ class PPU(
         if (vcount.ly >= VDRAW_HEIGHT) {
             bgReference.lock()
 
+            scheduler.schedule(-1, dmaManager.vblankTask)
             scheduler.schedule(SCANLINE_CYCLES, vblankRef, taskIndex)
             blitFramebuffer()
 

@@ -5,7 +5,9 @@ import spAnGB.utils.bit
 import spAnGB.utils.uInt
 import kotlin.experimental.and
 
-class DMAAddress: Memory {
+class DMAAddress(
+    val mask: Int
+): Memory {
     var value = 0
 
     override fun read8(address: Int): Byte {
@@ -26,9 +28,9 @@ class DMAAddress: Memory {
 
     override fun write16(address: Int, value: Short) {
         if (address bit 1) {
-            this.value = (this.value and 0xFFFF) or (value.and(0xFFF).toInt().shl(16))
+            this.value = (this.value and 0xFFFF) or (value.uInt.and(mask).shl(16))
         } else {
-            this.value = (this.value and 0xFFF0000) or value.uInt
+            this.value = (this.value and mask.shl(16)) or value.uInt
         }
     }
 

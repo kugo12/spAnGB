@@ -1,5 +1,6 @@
-package spAnGB.memory
+package spAnGB.memory.ram
 
+import spAnGB.memory.Memory
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
