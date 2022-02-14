@@ -1,13 +1,11 @@
 package spAnGB.cpu.thumb
 
-import spAnGB.cpu.CPU
-import spAnGB.cpu.CPUFlag
-import spAnGB.cpu.CPUInstruction
-import spAnGB.cpu.ThumbInstruction
+import spAnGB.cpu.*
 import spAnGB.cpu.arm.barrelShifterArithmeticRight
 import spAnGB.cpu.arm.barrelShifterLogicalLeft
 import spAnGB.cpu.arm.barrelShifterLogicalRight
 import spAnGB.cpu.arm.barrelShifterRotateRight
+import spAnGB.memory.AccessType
 import spAnGB.utils.bit
 import spAnGB.utils.hex
 import spAnGB.utils.toInt
@@ -52,6 +50,8 @@ class DataProcessingDsl {
     }
 
     inline fun performShift(func: CPU.(Int, Int) -> Int) {
+        cpu.bus.idle()
+        cpu.prefetchAccess = AccessType.NonSequential
         val tmp = cpu.func(destination, operand and 0xFF)
         cpu.registers[destinationRegister] = tmp
         C = cpu.shifterCarry
@@ -159,6 +159,8 @@ val thumbNeg = ThumbInstruction(
 val thumbMul = ThumbInstruction(
     { "Mul" },
     simpleInstruction {
+        cpu.idleSmul(destination)
+        cpu.prefetchAccess = AccessType.NonSequential
         C = false
         destination * operand
     }

@@ -21,7 +21,7 @@ class spAnGB(
         blitFramebuffer,
         scheduler = scheduler
     )
-    val cpu = CPU(bus)
+    val cpu = bus.cpu
 
     init {
         val unused = UnusedMemory(cpu, bus)
@@ -32,7 +32,7 @@ class spAnGB(
     }
 
     fun tick() {
-        cpu.tick()
-        scheduler.tick()
+        if(cpu.tick())
+            scheduler.tick()
     }
 }

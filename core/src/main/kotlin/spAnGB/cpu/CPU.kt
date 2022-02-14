@@ -4,6 +4,7 @@ package spAnGB.cpu
 
 import spAnGB.cpu.arm.ARMOpFactory
 import spAnGB.cpu.thumb.ThumbOpFactory
+import spAnGB.memory.AccessType.*
 import spAnGB.memory.Bus
 import spAnGB.utils.hex
 import spAnGB.utils.uInt
@@ -33,6 +34,8 @@ class CPU(
 
     @JvmField
     val pipeline = IntArray(2)
+
+    var prefetchAccess = NonSequential
 
     inline val pipelineHead: Int get() = pipeline[1]
 
@@ -102,9 +105,9 @@ class CPU(
 
     fun checkCondition(op: Int): Boolean = lutCondition[op or cpsr.ushr(24)]
 
-    fun tick() {
+    fun tick(): Boolean {
         handlePendingInterrupts()
-        if (halt.isHalted) return
+        if (halt.isHalted) return true
 
         val op = pipelineHead
         instr = op
@@ -120,6 +123,8 @@ class CPU(
         } else {
             armStep()
         }
+
+        return false
     }
 
     fun changeState(stateBit: Int) {
@@ -201,6 +206,7 @@ class CPU(
                 val cpsrCopy = cpsr
 
                 setCPUMode(CPUMode.Interrupt)
+//                if (state == CPUState.ARM) armStep() else thumbStep()
 
                 pc = 0x18
                 lr = link
@@ -218,27 +224,31 @@ class CPU(
 
     fun thumbRefill() {
         pc = pc and (1.inv())
-        pipeline[1] = bus.read16(pc).uInt
+        pipeline[1] = bus.read16(pc, NonSequential).uInt
         pc += 2
-        pipeline[0] = bus.read16(pc).uInt
+        pipeline[0] = bus.read16(pc, Sequential).uInt
+        prefetchAccess = Sequential
     }
 
     fun thumbStep() {
         pipeline[1] = pipeline[0]
         pc += 2
-        pipeline[0] = bus.read16(pc).uInt
+        pipeline[0] = bus.read16(pc, prefetchAccess).uInt
+        prefetchAccess = Sequential
     }
 
     fun armRefill() {
         pc = pc and (3.inv())
-        pipeline[1] = bus.read32(pc)
+        pipeline[1] = bus.read32(pc, NonSequential)
         pc += 4
-        pipeline[0] = bus.read32(pc)
+        pipeline[0] = bus.read32(pc, Sequential)
+        prefetchAccess = Sequential
     }
 
     fun armStep() {
         pipeline[1] = pipeline[0]
         pc += 4
-        pipeline[0] = bus.read32(pc)
+        pipeline[0] = bus.read32(pc, prefetchAccess)
+        prefetchAccess = Sequential
     }
 }

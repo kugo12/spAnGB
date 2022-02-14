@@ -10,13 +10,13 @@ class DMAManager(
     val hblankTask = ::scheduleHblank
 
     private fun scheduleVblank(taskIndex: Int) {
-        transfer(DMA.DMAStart.VBlank)
         scheduler.clear(taskIndex)
+        transfer(DMA.DMAStart.VBlank)
     }
 
     private fun scheduleHblank(taskIndex: Int) {
-        transfer(DMA.DMAStart.HBlank)
         scheduler.clear(taskIndex)
+        transfer(DMA.DMAStart.HBlank)
     }
 
     private fun transfer(timing: DMA.DMAStart) {

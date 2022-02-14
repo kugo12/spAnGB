@@ -102,6 +102,7 @@ class MMIO(
             0x130 -> keyInput
             0x200 -> ie
             0x202 -> ir
+            0x204, 0x205 -> bus.waitCnt
             0x208 -> ime
             0x301 -> halt
 

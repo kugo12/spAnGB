@@ -3,6 +3,7 @@
 package spAnGB.cpu.arm
 
 import spAnGB.cpu.*
+import spAnGB.memory.AccessType
 import spAnGB.utils.bit
 import spAnGB.utils.hex
 import spAnGB.utils.toInt
@@ -31,6 +32,8 @@ class DataProcessingDsl {
         destinationRegister = (instruction ushr 12) and 0xF
         secondOperand = when {
             !(instruction bit 25) && instruction bit 4 -> {
+                cpu.bus.idle()
+                cpu.prefetchAccess = AccessType.NonSequential
                 cpu.pc += 4
                 val tmp = cpu.operand(instruction ushr 4, cpu.registers[instruction and 0xF])
                 firstOperand = cpu.registers[(instruction ushr 16) and 0xF]
@@ -342,10 +345,6 @@ val armMsr = ARMInstruction(
             false -> {
                 cpsr = (cpsr and mask.inv()) or (src and mask)
                 setCPUMode(CPUMode.byMask[cpsr and 0x1F]!!)  // TODO: changing mode by mask?
-
-                if (this[CPUFlag.T]) {
-                    changeState(1)
-                }
             }
         }
     }

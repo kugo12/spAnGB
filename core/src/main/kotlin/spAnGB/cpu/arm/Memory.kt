@@ -1,7 +1,7 @@
 package spAnGB.cpu.arm
 
 import spAnGB.cpu.ARMInstruction
-import spAnGB.cpu.CPU
+import spAnGB.memory.AccessType.*
 import spAnGB.cpu.CPUMode
 import spAnGB.utils.bit
 import spAnGB.utils.uInt
@@ -10,23 +10,26 @@ import spAnGB.utils.uInt
 val armSwp = ARMInstruction(
     { "Swp" },
     {
+        bus.idle()
+        prefetchAccess = NonSequential
+
         val rn = registers[(instr ushr 16) and 0xF]
         val rm = registers[instr and 0xF]
         val dest = (instr ushr 12) and 0xF
 
         when (instr bit 22) {
             true -> {  // byte
-                setRegister(dest, bus.read8(rn).uInt)
-                bus.write8(rn, rm.toByte())
+                setRegister(dest, bus.read8(rn, NonSequential).uInt)
+                bus.write8(rn, rm.toByte(), NonSequential)
             }
             false -> {  // word
                 setRegister(
                     dest,
                     bus
-                        .read32(rn)
+                        .read32(rn, NonSequential)
                         .rotateRight((rn and 3) shl 3)
                 )
-                bus.write32(rn, rm)
+                bus.write32(rn, rm, NonSequential)
             }
         }
     }
@@ -35,6 +38,9 @@ val armSwp = ARMInstruction(
 val armLdr = ARMInstruction(
     { "Ldr" },
     {
+        bus.idle()
+        prefetchAccess = NonSequential
+
         val base = (instruction ushr 16) and 0xF
         val srcOrDst = (instruction ushr 12) and 0xF
         val pre = instruction bit 24
@@ -50,8 +56,8 @@ val armLdr = ARMInstruction(
         val address = if (pre) addressWithOffset else registers[base]
 
         val value = when (instruction bit 22) {
-            true -> bus.read8(address).uInt
-            false -> bus.read32(address).rotateRight((address and 3) shl 3)
+            true -> bus.read8(address, NonSequential).uInt
+            false -> bus.read32(address, NonSequential).rotateRight((address and 3) shl 3)
         }
 
         if ((pre && instruction bit 21) || !pre)
@@ -63,6 +69,7 @@ val armLdr = ARMInstruction(
 val armStr = ARMInstruction(
     { "Str" },
     {
+        prefetchAccess = NonSequential
         pc += 4
         val offset = when (instr bit 25) {
             true -> operand(instr ushr 4, registers[instr and 0xF])
@@ -78,8 +85,8 @@ val armStr = ARMInstruction(
 
         if (instr bit 24) {  // pre
             when (instr bit 22) {
-                true -> bus.write8(addr, src.toByte())
-                false -> bus.write32(addr, src)
+                true -> bus.write8(addr, src.toByte(), NonSequential)
+                false -> bus.write32(addr, src, NonSequential)
             }
 
             pc -= 4
@@ -88,8 +95,8 @@ val armStr = ARMInstruction(
             }
         } else {
             when (instr bit 22) {
-                true -> bus.write8(registers[base], src.toByte())
-                false -> bus.write32(registers[base], src)
+                true -> bus.write8(registers[base], src.toByte(), NonSequential)
+                false -> bus.write32(registers[base], src, NonSequential)
             }
 
             pc -= 4
@@ -101,6 +108,9 @@ val armStr = ARMInstruction(
 val armLdrhsb = ARMInstruction(
     { "Ldrhsb" }, // LDRH LDRSH LDRB LDRSB
     {
+        bus.idle()
+        prefetchAccess = NonSequential
+
         val base = (instruction ushr 16) and 0xF
         val srcOrDst = (instruction ushr 12) and 0xF
         val pre = instruction bit 24
@@ -117,10 +127,10 @@ val armLdrhsb = ARMInstruction(
 
 
         val value = when ((instruction ushr 5) and 0x3) {  // TODO
-            0 -> bus.read8(address).uInt
-            1 -> bus.read16(address).uInt.rotateRight((address and 1) shl 3)
-            2 -> bus.read8(address).toInt()
-            3 -> bus.read16(address).toInt() shr ((address and 1) shl 3)
+            0 -> bus.read8(address, NonSequential).uInt
+            1 -> bus.read16(address, NonSequential).uInt.rotateRight((address and 1) shl 3)
+            2 -> bus.read8(address, NonSequential).toInt()
+            3 -> bus.read16(address, NonSequential).toInt() shr ((address and 1) shl 3)
             else -> throw IllegalStateException("Unreachable")
         }
 
@@ -133,6 +143,7 @@ val armLdrhsb = ARMInstruction(
 val armStrhsb = ARMInstruction(
     { "Strhsb" },
     {
+        prefetchAccess = NonSequential
         pc += 4
         val offset = when (instr bit 22) {
             true -> ((instr ushr 4) and 0xF0) or (instr and 0xF)
@@ -150,10 +161,10 @@ val armStrhsb = ARMInstruction(
         val address = if (pre) addressWithOffset else registers[base]
 
         when ((instr ushr 5) and 0x3) {
-            0 -> bus.write8(address, src.toByte())
-            1 -> bus.write16(address, src.toShort())
-            2 -> bus.write8(address, src.toByte())
-            3 -> bus.write16(address, src.toShort())
+            0 -> bus.write8(address, src.toByte(), NonSequential)
+            1 -> bus.write16(address, src.toShort(), NonSequential)
+            2 -> bus.write8(address, src.toByte(), NonSequential)
+            3 -> bus.write16(address, src.toShort(), NonSequential)
         }
 
         pc -= 4
@@ -174,9 +185,10 @@ private inline fun registerList(instr: Int, reversed: Boolean): IntArray {
     return registerArray
 }
 
-val armStm = ARMInstruction(
+val armStm = ARMInstruction(  // STM and LDM sequential stuff
     { "stm" },
     {
+        prefetchAccess = NonSequential
         val pre = instr bit 24
         val up = instr bit 23
         val psrForceUser = instr bit 22
@@ -189,6 +201,7 @@ val armStm = ARMInstruction(
         var addr = registers[base]
 
         var baseInRegList = -1
+        var access = NonSequential
 
         if (pre) {
             when (up) {
@@ -204,7 +217,7 @@ val armStm = ARMInstruction(
                 !up && !pre -> addr -= 0x3C
                 !up && pre -> addr -= 0x3C
             }
-            bus.write32(addr, pc)
+            bus.write32(addr, pc, access)
 
             when {
                 up && !pre -> addr += 0x40
@@ -215,7 +228,8 @@ val armStm = ARMInstruction(
             for (it in regs) {
                 if (it == -1) continue
 
-                bus.write32(addr, registers[it])
+                bus.write32(addr, registers[it], access)
+                access = Sequential
                 if (it == base) {
                     baseInRegList = addr
                 }
@@ -242,7 +256,7 @@ val armStm = ARMInstruction(
             if (
                 baseInRegList != -1 &&
                 instr.and(1.shl(base).minus(1)) != 0  // not first in the list (TODO: what if reverse?)
-            ) bus.write32(baseInRegList, addr)
+            ) bus.write32(baseInRegList, addr, Sequential) // TODO
 
             setRegister(base, addr)
         }
@@ -253,6 +267,9 @@ val armStm = ARMInstruction(
 val armLdm = ARMInstruction(
     { "ldm" },
     {
+        bus.idle()
+        prefetchAccess = NonSequential
+
         val pre = instr bit 24
         val up = instr bit 23
         val psrForceUser = instr bit 22
@@ -263,6 +280,7 @@ val armLdm = ARMInstruction(
         var addr = registers[base]
 
         var baseInRegList = -1
+        var access = NonSequential
 
         if (pre) {
             when (up) {
@@ -279,7 +297,7 @@ val armLdm = ARMInstruction(
         }
 
         if (instr and 0xFFFF == 0) {
-            setRegister(15, bus.read32(addr))
+            setRegister(15, bus.read32(addr, access))
             when (up) {
                 true -> addr += 0x40
                 false -> addr -= 0x40
@@ -288,7 +306,8 @@ val armLdm = ARMInstruction(
             for (it in regs) {
                 if (it == -1) continue
 
-                setRegister(it, bus.read32(addr))
+                setRegister(it, bus.read32(addr, access))
+                access = Sequential
                 if (it == base) {
                     baseInRegList = addr
                 }

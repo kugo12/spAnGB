@@ -1,5 +1,6 @@
 package spAnGB.memory.dma
 
+import spAnGB.memory.AccessType
 import spAnGB.memory.Bus
 import spAnGB.memory.Memory
 import spAnGB.memory.dma.mmio.DMAAddress
@@ -18,6 +19,8 @@ class DMA(
     val bus: Bus,
     val index: Int
 ) : Memory {
+    val cpu = bus.cpu
+    val scheduler = bus.scheduler
     var active: Boolean = false
     val mask = if (index == 3) 0xFFFF else 0x3FFF
 
@@ -106,8 +109,18 @@ class DMA(
 
     fun transfer() {
         active = true
-        if (latch.source ushr 24 in 0x8 .. 0xD) value = value and ((3 shl 7).inv())
+        bus.idle()  // FIXME
+        bus.idle()
+
+        if (latch.source ushr 24 in 0x8 .. 0xD) {
+            value = value and ((3 shl 7).inv())
+            if (latch.destination ushr 24 in 0x8 .. 0xD) {
+                bus.idle()
+                bus.idle()
+            }
+        }
         if (is32Bit) transferWords() else transferHalfWords()
+        cpu.prefetchAccess = AccessType.NonSequential
         active = false
     }
 
@@ -115,15 +128,18 @@ class DMA(
         latch.destination = latch.destination and 3.inv()
         latch.source = latch.source and 3.inv()
 
+        var access = AccessType.NonSequential
         for (it in 0 until latch.count) {
             val source = getSource(it * 4)
             if (source >= 0x2000000)
-                latch.last = bus.read32(source)
+                latch.last = bus.read32(source, access)
 
             bus.write32(
                 getDestination(it * 4),
-                latch.last
+                latch.last,
+                access
             )
+            access = AccessType.Sequential
         }
 
         endTransfer()
@@ -133,16 +149,19 @@ class DMA(
         latch.destination = latch.destination and 1.inv()
         latch.source = latch.source and 1.inv()
 
+        var access = AccessType.NonSequential
         for (it in 0 until latch.count) {
             val source = getSource(it * 2)
             if (source >= 0x2000000)
-                latch.last = bus.read16(source).uInt.let { it or it.shl(16) }
+                latch.last = bus.read16(source, access).uInt.let { it or it.shl(16) }
 
             val dest = getDestination(it * 2)
             bus.write16(
                 dest,
-                latch.last.ushr(dest.and(2) shl 3).toShort()
+                latch.last.ushr(dest.and(2) shl 3).toShort(),
+                access
             )
+            access = AccessType.Sequential
         }
 
         endTransfer()

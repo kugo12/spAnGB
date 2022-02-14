@@ -32,7 +32,7 @@ class UnusedMemory(
                 if (cpu.pc bit 1) {  // not aligned
                     cpu.pipeline[1] or cpu.pipeline[0].shl(16)
                 } else {
-                    cpu.pipeline[0] or bus.read16(cpu.pc + 2).uInt.shl(16)
+                    cpu.pipeline[0] or cpu.pipeline[0].shl(16) // TODO: bus.read16(cpu.pc + 2).uInt.shl(16)
                 }
             }
             // iwram

@@ -35,13 +35,13 @@ class Scheduler {
 
 
     fun tick() {
-        for (index in 0 .. taskQueueSize) {
+        for (index in 0 until taskQueueSize) {
             val taskCounter = taskCounters[index]
 
-            if (taskCounter == -1L) break
+            if (taskCounter == -1L) continue
             if (taskCounter <= counter) tasks[index]!!(index)
         }
 
-        counter += 1  // TODO
+        counter += 1
     }
 }

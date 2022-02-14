@@ -3,9 +3,11 @@
 package spAnGB.memory
 
 import spAnGB.Scheduler
+import spAnGB.cpu.CPU
 import spAnGB.memory.dma.DMA
 import spAnGB.memory.dma.DMAManager
 import spAnGB.memory.mmio.MMIO
+import spAnGB.memory.mmio.WaitstateControl
 import spAnGB.memory.ram.RAM
 import spAnGB.memory.rom.Cartridge
 import spAnGB.ppu.PPU
@@ -14,11 +16,14 @@ import spAnGB.utils.uInt
 import java.io.File
 import java.nio.ByteBuffer
 
+enum class AccessType { NonSequential, Sequential }
+
 class Bus(
     framebuffer: ByteBuffer,
     blitFramebuffer: () -> Unit,
     val scheduler: Scheduler
-): Memory {
+) {
+    val mmio = MMIO(this)
     var bios: Memory = Memory.stub
     var unusedMemory: Memory = Memory.stub
     var cartridge: Memory = Memory.stub
@@ -27,6 +32,7 @@ class Bus(
     private val wram = RAM(256 * KiB)
     private val iwram = RAM(32 * KiB)
 
+    val cpu = CPU(this)
     val dma = arrayOf(
         DMA(this, 0),
         DMA(this, 1),
@@ -34,8 +40,7 @@ class Bus(
         DMA(this, 3)
     )
     val dmaManager = DMAManager(dma, scheduler)
-    @JvmField
-    val mmio = MMIO(this)
+    val waitCnt = WaitstateControl()
 
     val ppu = PPU(framebuffer, blitFramebuffer, mmio, scheduler, dmaManager)
 
@@ -43,33 +48,82 @@ class Bus(
 
 
     // This cursed stuff is for inlining
-    override fun read8(address: Int): Byte = get(address) { read8(address).also { last = it.uInt } }
-    override fun read16(address: Int): Short = get(address) { read16(address).also { last = it.uInt } }
-    override fun read32(address: Int): Int = get(address) { read32(address).also { last = it } }
+    fun read8(address: Int, access: AccessType = AccessType.NonSequential): Byte = get<Byte, Byte>(address, access) { read8(address).also { last = it.uInt } }
+    fun read16(address: Int, access: AccessType = AccessType.NonSequential): Short = get<Short, Short>(address, access) { read16(address).also { last = it.uInt } }
+    fun read32(address: Int, access: AccessType = AccessType.NonSequential): Int = get<Int, Int>(address, access) { read32(address).also { last = it } }
 
-    override fun write8(address: Int, value: Byte) = get(address) { write8(address, value) }
-    override fun write16(address: Int, value: Short) = get(address) { write16(address, value) }
-    override fun write32(address: Int, value: Int) = get(address) { write32(address, value) }
+    fun write8(address: Int, value: Byte, access: AccessType = AccessType.NonSequential) = get<Byte, Unit>(address, access) { write8(address, value) }
+    fun write16(address: Int, value: Short, access: AccessType = AccessType.NonSequential) = get<Short, Unit>(address, access) { write16(address, value) }
+    fun write32(address: Int, value: Int, access: AccessType = AccessType.NonSequential) = get<Int, Unit>(address, access) { write32(address, value) }
 
-    private inline fun <T> get(address: Int, func: Memory.() -> T): T =
+    private inline fun <reified Size, reified Return> get(address: Int, access: AccessType, func: Memory.() -> Return): Return =
         when (address ushr 24) {
-            0x0 -> bios.func()         // 0 - BIOS
-            0x2 -> wram.func()  // 2 - WRAM
-            0x3 -> iwram.func()  // 3 - IWRAM
-            0x4 -> mmio.func()  // 4 - MMIO
-            0x5 -> ppu.palette.func()  // 5 - PPU - palette
-            0x6 -> ppu.vram.func()  // 6 - PPU - VRAM
-            0x7 -> ppu.attributes.func()  // 7 - PPU - attributes
-            0x8 -> cartridge.func()  // 8 - GamePak - wait state 0
-            0x9 -> cartridge.func()  // 9 - GamePak - wait state 0
-            0xA -> cartridge.func()  // A - GamePak - wait state 1
-            0xB -> cartridge.func()  // B - GamePak - wait state 1
-            0xC -> cartridge.func()  // C - GamePak - wait state 2
-            0xD -> cartridge.func()  // D - GamePak - wait state 2
-            0xE -> cartridgePersistence.func()  // E - GamePak - SRAM
-            0xF -> cartridgePersistence.func()  // F - not used / SRAM mirror
-            else -> unusedMemory.func()
+            0x0 -> {
+                tick()
+                bios.func()
+            }
+            0x2 -> {
+                stepBy<Size>({ 6 }, { 3 })
+                wram.func()
+            }
+            0x3 -> {
+                tick()
+                iwram.func()
+            }
+            0x4 -> {
+                tick()
+                mmio.func()
+            }
+            0x5 -> {
+                stepBy<Size>({ 2 }, { 1 })
+                ppu.palette.func()
+            }
+            0x6 -> {
+                stepBy<Size>({ 2 }, { 1 })
+                ppu.vram.func()
+            }
+            0x7 -> {
+                tick()
+                ppu.attributes.func()
+            }
+            in 0x8 .. 0xD -> {
+                val a = if (address and 0x1FFFF == 0) AccessType.NonSequential.ordinal else access.ordinal
+                val waitState = (address.ushr(24) - 0x8).ushr(1)
+                stepBy<Size>(
+                    {
+                        waitCnt.lut[waitState].let { it[a] + it[AccessType.Sequential.ordinal] }
+                    },
+                    {
+                        waitCnt.lut[waitState][a]
+                    }
+                )
+                cartridge.func()
+            }
+            0xE, 0xF -> {
+                step(waitCnt.sram)
+                cartridgePersistence.func()
+            }
+            else -> {
+                tick()
+                unusedMemory.func()
+            }
         }
+
+    inline fun <reified T> stepBy(int: () -> Int, other: () -> Int) {
+        step(if (0 is T) int() else other())
+    }
+
+    fun step(cycles: Int) {
+        for (it in 0 until cycles) tick()
+    }
+
+    inline fun tick() {
+        scheduler.tick()
+    }
+
+    fun idle() {
+        tick()
+    }
 
     fun loadCartridge(f: File) {
         val c = Cartridge(f, this)

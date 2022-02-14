@@ -45,14 +45,17 @@ class Timer(
     private val overflowTask: SchedulerTask = ::overflow
 
     fun reschedule(taskIndex: Int) {
+        println("reschedule at " +((0x10000 - counter).hex).toString() )
         start = scheduler.counter
         scheduler.schedule((0x10000 - counter).toLong() * nextTick, overflowTask, taskIndex)
     }
 
     fun schedule() {
         isRunning = true
-        start = scheduler.counter
-        task = scheduler.schedule((0x10000 - counter).toLong() * nextTick, overflowTask)
+        start = scheduler.counter + 3
+        println("schedule at " +((0x10000 - counter).hex).toString() )
+
+        task = scheduler.schedule((0x10000 - counter).toLong() * nextTick + 3, overflowTask)
     }
 
     override fun read8(address: Int): Byte {
@@ -63,6 +66,7 @@ class Timer(
         if (address bit 1) {  // Control
             control.toShort()
         } else {
+//            counter += ((scheduler.counter - start) / nextTick).toInt()
             if (isRunning)
                 (counter + (scheduler.counter - start) / nextTick).toShort()
             else
@@ -79,8 +83,14 @@ class Timer(
 
     override fun write16(address: Int, value: Short) {
         if (address bit 1) {  // Control
+            if (isRunning) {
+                counter += ((scheduler.counter - start) / nextTick).toInt()
+                start = scheduler.counter
+                if (counter > 0xFFFF) onOverflow()
+                scheduler.clear(task)
+                isRunning = false
+            }
             val wasEnabled = isEnabled
-            val wasTickingAt = nextTick
             control = value.toInt()
 
             if (interrupt == Interrupt.Timer0) {
@@ -90,19 +100,12 @@ class Timer(
             if (isEnabled) {
                 if (!wasEnabled) {
                     counter = reload
-                } else if (isRunning && nextTick != wasTickingAt) {
-                    counter += ((scheduler.counter - start) / wasTickingAt).toInt()
-                    if (counter >= 0xFFFF) onOverflow()
                 }
 
                 if (!isCountUp) {
-                    if (isRunning) reschedule(task) else schedule()
+                    if (!isRunning) schedule()
+                    return
                 }
-            } else if (isRunning) {
-                counter += ((scheduler.counter - start) / wasTickingAt).toInt()
-                if (counter >= 0xFFFF) onOverflow()
-                scheduler.clear(task)
-                isRunning = false
             }
         } else {
             reload = value.uInt
@@ -116,9 +119,10 @@ class Timer(
     fun countUp() {
         if (isEnabled && isCountUp) {
             counter += 1
-            if (counter >= 0xFFFF) onOverflow()
+            if (counter > 0xFFFF) onOverflow()
         }
     }
+
 
     private inline fun overflow(taskIndex: Int) {
         onOverflow()

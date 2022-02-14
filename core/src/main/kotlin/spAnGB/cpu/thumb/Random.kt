@@ -9,7 +9,7 @@ import spAnGB.cpu.arm.barrelShifterLogicalRight
 import spAnGB.utils.bit
 import spAnGB.utils.uLong
 
-val thumbMovs = ThumbInstruction(
+val thumbMovs = ThumbInstruction(   // TODO
     { "Movs" },
     {
         val src = registers[(instr ushr 3) and 0x7]
