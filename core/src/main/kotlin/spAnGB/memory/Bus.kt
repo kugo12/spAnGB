@@ -4,12 +4,12 @@ package spAnGB.memory
 
 import spAnGB.Scheduler
 import spAnGB.cpu.CPU
-import spAnGB.memory.dma.DMA
 import spAnGB.memory.dma.DMAManager
 import spAnGB.memory.mmio.MMIO
 import spAnGB.memory.mmio.WaitstateControl
 import spAnGB.memory.ram.RAM
 import spAnGB.memory.rom.Cartridge
+import spAnGB.memory.rom.GamepakPrefetch
 import spAnGB.ppu.PPU
 import spAnGB.utils.KiB
 import spAnGB.utils.uInt
@@ -33,16 +33,12 @@ class Bus(
     private val iwram = RAM(32 * KiB)
 
     val cpu = CPU(this)
-    val dma = arrayOf(
-        DMA(this, 0),
-        DMA(this, 1),
-        DMA(this, 2),
-        DMA(this, 3)
-    )
-    val dmaManager = DMAManager(dma, scheduler)
+    val dmaManager = DMAManager(this)
+    val dma = dmaManager.dma
     val waitCnt = WaitstateControl()
 
     val ppu = PPU(framebuffer, blitFramebuffer, mmio, scheduler, dmaManager)
+    val prefetch = GamepakPrefetch(waitCnt, cpu)
 
     var last = 0
 
@@ -87,19 +83,23 @@ class Bus(
                 ppu.attributes.func()
             }
             in 0x8 .. 0xD -> {
-                val a = if (address and 0x1FFFF == 0) AccessType.NonSequential.ordinal else access.ordinal
+                val a = if (address and 0x1FFFF == 0 && !dmaManager.isDmaActive) AccessType.NonSequential.ordinal else access.ordinal
                 val waitState = (address.ushr(24) - 0x8).ushr(1)
                 stepBy<Size>(
                     {
-                        waitCnt.lut[waitState].let { it[a] + it[AccessType.Sequential.ordinal] }
+                        waitCnt.lut[waitState]
+                            .let { it[a] + it[AccessType.Sequential.ordinal] }
+                            .let { prefetch.prefetch<Return>(address, it, waitCnt.lut[waitState][1] * 2) }
                     },
                     {
                         waitCnt.lut[waitState][a]
+                            .let { prefetch.prefetch<Return>(address, it, waitCnt.lut[waitState][1]) }
                     }
                 )
                 cartridge.func()
             }
             0xE, 0xF -> {
+                // TODO: prefetch penalty?
                 step(waitCnt.sram)
                 cartridgePersistence.func()
             }
@@ -118,12 +118,11 @@ class Bus(
     }
 
     inline fun tick() {
+        prefetch.tick()
         scheduler.tick()
     }
 
-    fun idle() {
-        tick()
-    }
+    fun idle() = tick()
 
     fun loadCartridge(f: File) {
         val c = Cartridge(f, this)

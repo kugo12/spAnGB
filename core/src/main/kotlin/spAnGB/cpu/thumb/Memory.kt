@@ -171,24 +171,26 @@ val thumbPush = ThumbInstruction(
     { "Push" },
     {
         prefetchAccess = NonSequential
-        var spUpdate = 0
+
+        val n = instr.and(0x1FF).countOneBits()
+        val startAddress = registers[13] - n * 4
+
+        var address = startAddress
         var access = NonSequential
 
-        if (instr bit 8) {
-            spUpdate += 4
-            bus.write32(registers[13] - spUpdate, lr, access)
-            access = Sequential
-        }
-
-        for (it in 7 downTo 0) {
+        for (it in 0..7) {
             if (instr bit it) {
-                spUpdate += 4
-                bus.write32(registers[13] - spUpdate, registers[it], access)
+                bus.write32(address, registers[it], access)
+                address += 4
                 access = Sequential
             }
         }
 
-        registers[13] -= spUpdate
+        if (instr bit 8) {
+            bus.write32(address, lr, access)
+        }
+
+        registers[13] = startAddress
     }
 )
 
@@ -227,30 +229,28 @@ val thumbStmia = ThumbInstruction(
 
         val rb = (instr ushr 8) and 0x7
         val address = registers[rb]
-        var rbAddress = -1
         var access = NonSequential
+        val n = instr.and(0xFF).countOneBits()
 
-        if (instr and 0xFF == 0) {
+        if (n == 0) {
             bus.write32(address, (pc + 2).and(2.inv()), access)
             update += 0x40
         } else {
-            for (it in 0 .. 7) {
+            for (it in 0..7) {
                 if (!(instr bit it)) continue
 
-                if (it == rb) {
-                    rbAddress = address + update
+                if (it == rb && instr.and(1.shl(rb).minus(1)) != 0) {
+                    bus.write32(address + update, address + n * 4, access)
+                } else {
+                    bus.write32(address + update, registers[it], access)
                 }
 
-                bus.write32(address + update, registers[it], access)
                 access = Sequential
                 update += 4
             }
         }
 
         registers[rb] += update
-        if (rbAddress != -1 && instr.and(1.shl(rb).minus(1)) != 0) {
-            bus.write32(rbAddress, registers[rb], access)  // TODO
-        }
     }
 )
 

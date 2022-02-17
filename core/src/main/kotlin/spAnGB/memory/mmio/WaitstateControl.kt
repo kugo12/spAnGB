@@ -19,6 +19,7 @@ class WaitstateControl : Memory {
         intArrayOf(5, 5),
         intArrayOf(5, 9),
     )
+    var isPrefetchEnabled = false
 
     override fun read8(address: Int): Byte {
         TODO("Not yet implemented")
@@ -45,6 +46,7 @@ class WaitstateControl : Memory {
     override fun read32(address: Int): Int = 0
 
     fun generateLut() {
+        isPrefetchEnabled = value bit 14
         sram = CYCLES[value and 3]
 
         for (it in 0 .. 2) {

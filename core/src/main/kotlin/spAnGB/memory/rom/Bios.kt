@@ -1,8 +1,10 @@
-package spAnGB.memory
+package spAnGB.memory.rom
 
 import spAnGB.cpu.CPU
+import spAnGB.memory.Bus
+import spAnGB.memory.Memory
+import spAnGB.memory.UnusedMemory
 import spAnGB.utils.KiB
-import spAnGB.utils.hex
 import spAnGB.utils.uInt
 import java.io.File
 import java.nio.ByteBuffer

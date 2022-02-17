@@ -175,12 +175,8 @@ val armStrhsb = ARMInstruction(
 
 @JvmField
 val registerArray = IntArray(16) { -1 }
-private inline fun registerList(instr: Int, reversed: Boolean): IntArray {
-    if (reversed) {
-        for (it in 0 .. 15) if (instr bit it) registerArray[15 - it] = it else registerArray[15 - it] = -1
-    } else {
-        for (it in 0 .. 15) if (instr bit it) registerArray[it] = it else registerArray[it] = -1
-    }
+private inline fun registerList(instr: Int): IntArray {
+    for (it in 0..15) if (instr bit it) registerArray[it] = it else registerArray[it] = -1
 
     return registerArray
 }
@@ -189,55 +185,53 @@ val armStm = ARMInstruction(  // STM and LDM sequential stuff
     { "stm" },
     {
         prefetchAccess = NonSequential
-        val pre = instr bit 24
-        val up = instr bit 23
+        var pre = instr bit 24
+        val increment = instr bit 23
         val psrForceUser = instr bit 22
         val modeCopy = mode
 
         pc += 4
 
         val base = (instr ushr 16) and 0xF
-        val regs = registerList(instr, !up)
-        var addr = registers[base]
+        val regs = registerList(instr)
+        val n = regs.count { it != -1 }
+        var newAddress = registers[base] + (if (increment) 4 else -4) * n
+        var addr = registers[base] +
+                (if (increment) 0 else -4 * n)
 
-        var baseInRegList = -1
+        val baseNotFirst = instr.and(1.shl(base).minus(1)) != 0
         var access = NonSequential
-
-        if (pre) {
-            when (up) {
-                true -> addr += 4
-                false -> addr -= 4
-            }
-        }
+        if (!increment) pre = !pre
 
         if (psrForceUser) setCPUMode(CPUMode.User)
 
         if (instr and 0xFFFF == 0) {
             when {
-                !up && !pre -> addr -= 0x3C
-                !up && pre -> addr -= 0x3C
+                !increment && !pre -> newAddress -= 0x40
+                !increment && pre -> newAddress -= 0x3C
+                increment && pre -> newAddress += 4
             }
-            bus.write32(addr, pc, access)
+            bus.write32(newAddress, pc, access)
 
             when {
-                up && !pre -> addr += 0x40
-                !up && !pre -> addr -= 4
-                up && pre -> addr += 0x3C
+                !increment && pre -> newAddress -= 4
+                increment && !pre -> newAddress += 0x40
+                increment && pre -> newAddress += 0x3C
             }
         } else {
             for (it in regs) {
                 if (it == -1) continue
 
-                bus.write32(addr, registers[it], access)
-                access = Sequential
-                if (it == base) {
-                    baseInRegList = addr
+                if (pre) addr += 4
+
+                if (it == base && baseNotFirst) {
+                    bus.write32(addr, newAddress, access)
+                } else {
+                    bus.write32(addr, registers[it], access)
                 }
 
-                when (up) {
-                    true -> addr += 4
-                    false -> addr -= 4
-                }
+                access = Sequential
+                if (!pre) addr += 4
             }
         }
 
@@ -246,21 +240,8 @@ val armStm = ARMInstruction(  // STM and LDM sequential stuff
         pc -= 4
 
         if (instr bit 21) {  // writeback
-            if (pre && instr and 0xFFFF != 0) {
-                when (up) {
-                    true -> addr -= 4
-                    false -> addr += 4
-                }
-            }
-
-            if (
-                baseInRegList != -1 &&
-                instr.and(1.shl(base).minus(1)) != 0  // not first in the list (TODO: what if reverse?)
-            ) bus.write32(baseInRegList, addr, Sequential) // TODO
-
-            setRegister(base, addr)
+            setRegister(base, newAddress)
         }
-
     }
 )
 
@@ -270,24 +251,20 @@ val armLdm = ARMInstruction(
         bus.idle()
         prefetchAccess = NonSequential
 
-        val pre = instr bit 24
-        val up = instr bit 23
+        var pre = instr bit 24
+        val increment = instr bit 23
         val psrForceUser = instr bit 22
         val modeCopy = mode
 
         val base = (instr ushr 16) and 0xF
-        val regs = registerList(instr, !up)
-        var addr = registers[base]
+        val regs = registerList(instr)
+        val n = regs.count { it != -1 }
+        var newAddress = registers[base] + (if (increment) 4 else -4) * n
+        var addr = registers[base] +
+                (if (increment) 0 else -4 * n)
 
-        var baseInRegList = -1
         var access = NonSequential
-
-        if (pre) {
-            when (up) {
-                true -> addr += 4
-                false -> addr -= 4
-            }
-        }
+        if (!increment) pre = !pre
 
         if (psrForceUser) {
             if (instr bit 15)
@@ -298,40 +275,27 @@ val armLdm = ARMInstruction(
 
         if (instr and 0xFFFF == 0) {
             setRegister(15, bus.read32(addr, access))
-            when (up) {
-                true -> addr += 0x40
-                false -> addr -= 0x40
+            when (increment) {
+                true -> newAddress += 0x40
+                false -> newAddress -= 0x40
             }
         } else {
             for (it in regs) {
                 if (it == -1) continue
 
+                if (pre) addr += 4
+
                 setRegister(it, bus.read32(addr, access))
                 access = Sequential
-                if (it == base) {
-                    baseInRegList = addr
-                }
 
-                when (up) {
-                    true -> addr += 4
-                    false -> addr -= 4
-                }
+                if (!pre) addr += 4
             }
         }
 
         if (psrForceUser) setCPUMode(modeCopy)
 
-        if (instr bit 21) {  // writeback
-            if (pre) {
-                when (up) {
-                    true -> addr -= 4
-                    false -> addr += 4
-                }
-            }
-
-            if (baseInRegList == -1) {
-                setRegister(base, addr)
-            }
+        if (instr bit 21 && !(instr bit base)) {
+            setRegister(base, newAddress)
         }
     }
 )

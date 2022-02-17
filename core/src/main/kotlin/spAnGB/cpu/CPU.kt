@@ -206,7 +206,7 @@ class CPU(
                 val cpsrCopy = cpsr
 
                 setCPUMode(CPUMode.Interrupt)
-//                if (state == CPUState.ARM) armStep() else thumbStep()
+                if (state == CPUState.ARM) armStep() else thumbStep()
 
                 pc = 0x18
                 lr = link

@@ -6,32 +6,25 @@ import spAnGB.memory.Memory
 import spAnGB.memory.mmio.Interrupt
 import spAnGB.memory.mmio.InterruptRequest
 import spAnGB.utils.bit
-import spAnGB.utils.hex
 import spAnGB.utils.uInt
+import spAnGB.utils.uLong
 
 @JvmField
 val prescalerLut = longArrayOf(1, 64, 256, 1024)
 
 class Timer(
-    @JvmField
     val ir: InterruptRequest,
-    @JvmField
     val scheduler: Scheduler,
-    @JvmField
     val interrupt: Interrupt,
-    @JvmField
     val incrementNextTimer: (() -> Unit)? = null
 ) : Memory {
-    @JvmField
     var counter = 0
 
     var start = 0L
     var task = -1
+    var isRunning = false
 
-    @JvmField
     var control = 0
-
-    @JvmField
     var reload = 0
 
     inline val isCountUp get() = control bit 2
@@ -39,23 +32,20 @@ class Timer(
     inline val isIrqEnabled get() = control bit 6
     inline val isEnabled get() = control bit 7
 
-    @JvmField
-    var isRunning = false
 
     private val overflowTask: SchedulerTask = ::overflow
 
     fun reschedule(taskIndex: Int) {
-        println("reschedule at " +((0x10000 - counter).hex).toString() )
         start = scheduler.counter
-        scheduler.schedule((0x10000 - counter).toLong() * nextTick, overflowTask, taskIndex)
+        isRunning = true
+        scheduler.schedule((0x10000 - counter.toShort().uLong) * nextTick, overflowTask, taskIndex)
     }
 
-    fun schedule() {
+    fun schedule(wasEnabled: Boolean) {
+        val x = if (!wasEnabled) 3 else 0
+        start = scheduler.counter + x
         isRunning = true
-        start = scheduler.counter + 3
-        println("schedule at " +((0x10000 - counter).hex).toString() )
-
-        task = scheduler.schedule((0x10000 - counter).toLong() * nextTick + 3, overflowTask)
+        task = scheduler.schedule((0x10000 - counter.toShort().uLong) * nextTick + x, overflowTask)
     }
 
     override fun read8(address: Int): Byte {
@@ -66,7 +56,6 @@ class Timer(
         if (address bit 1) {  // Control
             control.toShort()
         } else {
-//            counter += ((scheduler.counter - start) / nextTick).toInt()
             if (isRunning)
                 (counter + (scheduler.counter - start) / nextTick).toShort()
             else
@@ -83,15 +72,18 @@ class Timer(
 
     override fun write16(address: Int, value: Short) {
         if (address bit 1) {  // Control
-            if (isRunning) {
-                counter += ((scheduler.counter - start) / nextTick).toInt()
-                start = scheduler.counter
-                if (counter > 0xFFFF) onOverflow()
-                scheduler.clear(task)
-                isRunning = false
-            }
             val wasEnabled = isEnabled
+            val wasTickingAt = nextTick
             control = value.toInt()
+
+            if (isRunning && (isCountUp || !isEnabled)) {
+                scheduler.schedule(3, {
+                    scheduler.clear(it)
+                    counter += ((scheduler.counter - start) / wasTickingAt).toInt()
+                    if (counter > 0xFFFF) onOverflow()
+                    isRunning = false
+                }, task)
+            }
 
             if (interrupt == Interrupt.Timer0) {
                 control = control and 4.inv()
@@ -102,9 +94,8 @@ class Timer(
                     counter = reload
                 }
 
-                if (!isCountUp) {
-                    if (!isRunning) schedule()
-                    return
+                if (!isCountUp && !isRunning) {
+                    schedule(wasEnabled)
                 }
             }
         } else {

@@ -21,12 +21,12 @@ class Scheduler {
     }
 
     fun schedule(after: Long, task: SchedulerTask?): Int {
-        val after = counter + after
+        val c = counter + after
 
         var index = 0
         while (true)
             if (taskCounters[index] == -1L) { // this throws if queue is too small
-                taskCounters[index] = after
+                taskCounters[index] = c
                 tasks[index] = task
 
                 return index

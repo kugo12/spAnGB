@@ -1,11 +1,20 @@
 package spAnGB.memory.dma
 
 import spAnGB.Scheduler
+import spAnGB.memory.Bus
 
 class DMAManager(
-    val dma: Array<DMA>,
-    val scheduler: Scheduler
+    val bus: Bus,
 ) {
+    val scheduler = bus.scheduler
+
+    val dma = arrayOf(
+        DMA(this, 0),
+        DMA(this, 1),
+        DMA(this, 2),
+        DMA(this, 3)
+    )
+    var isDmaActive = false
     val vblankTask = ::scheduleVblank
     val hblankTask = ::scheduleHblank
 

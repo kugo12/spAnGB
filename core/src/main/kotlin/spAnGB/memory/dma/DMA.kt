@@ -1,10 +1,10 @@
 package spAnGB.memory.dma
 
 import spAnGB.memory.AccessType
-import spAnGB.memory.Bus
 import spAnGB.memory.Memory
 import spAnGB.memory.dma.mmio.DMAAddress
 import spAnGB.utils.bit
+import spAnGB.utils.toInt
 import spAnGB.utils.uInt
 
 class DMALatch {
@@ -16,9 +16,10 @@ class DMALatch {
 
 class DMA(
     // It is dma control by itself
-    val bus: Bus,
+    val manager: DMAManager,
     val index: Int
 ) : Memory {
+    val bus = manager.bus
     val cpu = bus.cpu
     val scheduler = bus.scheduler
     var active: Boolean = false
@@ -45,7 +46,7 @@ class DMA(
         }
     }
 
-// TODO
+    // TODO
 //    11    Game Pak DRQ  - DMA3 only -  (0=Normal, 1=DRQ <from> Game Pak, DMA3)
 //    12-13 DMA Start Timing  (0=Immediately, 1=VBlank, 2=HBlank, 3=Special)
 //    The 'Special' setting (Start Timing=3) depends on the DMA channel:
@@ -90,12 +91,15 @@ class DMA(
         if (address bit 1) {
             val wasEnabled = enabled
             this.value = value.toInt()
+
             if (!wasEnabled && enabled) {
                 latch.count = count
                 latch.source = source.value
                 latch.destination = destination.value
 
-                if (startTiming == DMAStart.Immediate) transfer()
+                if (startTiming == DMAStart.Immediate) {
+                    scheduler.schedule(3, ::transfer)  // TODO: should be 2, but 3 works better?
+                }
             }
         } else {
             count = value.toInt() and mask
@@ -107,39 +111,59 @@ class DMA(
         TODO()
     }
 
-    fun transfer() {
+    fun transfer(taskIndex: Int = -1) {
+        if (taskIndex != -1) scheduler.clear(taskIndex)
         active = true
-        bus.idle()  // FIXME
+        manager.isDmaActive = true
         bus.idle()
 
-        if (latch.source ushr 24 in 0x8 .. 0xD) {
-            value = value and ((3 shl 7).inv())
-            if (latch.destination ushr 24 in 0x8 .. 0xD) {
-                bus.idle()
-                bus.idle()
-            }
+        val isSourceInRom = latch.source ushr 24 in 0x8..0xD
+        if (isSourceInRom) {
+            value = value and ((3 shl 7).inv())  // force increment
         }
+
         if (is32Bit) transferWords() else transferHalfWords()
+
         cpu.prefetchAccess = AccessType.NonSequential
+        manager.isDmaActive = false
         active = false
+        bus.idle()
     }
 
     fun transferWords() {
         latch.destination = latch.destination and 3.inv()
         latch.source = latch.source and 3.inv()
 
-        var access = AccessType.NonSequential
+        var accessSource = AccessType.Sequential
+        var accessDestination = AccessType.Sequential
+        var wasRomAccessed = false
         for (it in 0 until latch.count) {
             val source = getSource(it * 4)
+            val dest = getDestination(it * 4)
+
+            if (!wasRomAccessed) {
+                when {
+                    source >= 0x8000000 -> {
+                        accessSource = AccessType.NonSequential
+                        wasRomAccessed = true
+                    }
+                    dest >= 0x8000000 -> {
+                        accessDestination = AccessType.NonSequential
+                        wasRomAccessed = true
+                    }
+                }
+            }
             if (source >= 0x2000000)
-                latch.last = bus.read32(source, access)
+                latch.last = bus.read32(source, accessSource)
+            else bus.idle()
 
             bus.write32(
-                getDestination(it * 4),
+                dest,
                 latch.last,
-                access
+                accessDestination
             )
-            access = AccessType.Sequential
+            accessSource = AccessType.Sequential
+            accessDestination = AccessType.Sequential
         }
 
         endTransfer()
@@ -149,19 +173,36 @@ class DMA(
         latch.destination = latch.destination and 1.inv()
         latch.source = latch.source and 1.inv()
 
-        var access = AccessType.NonSequential
+        var accessSource = AccessType.Sequential
+        var accessDestination = AccessType.Sequential
+        var wasRomAccessed = false
         for (it in 0 until latch.count) {
             val source = getSource(it * 2)
-            if (source >= 0x2000000)
-                latch.last = bus.read16(source, access).uInt.let { it or it.shl(16) }
-
             val dest = getDestination(it * 2)
+
+            if (!wasRomAccessed) {
+                when {
+                    source >= 0x8000000 -> {
+                        accessSource = AccessType.NonSequential
+                        wasRomAccessed = true
+                    }
+                    dest >= 0x8000000 -> {
+                        accessDestination = AccessType.NonSequential
+                        wasRomAccessed = true
+                    }
+                }
+            }
+            if (source >= 0x2000000)
+                latch.last = bus.read16(source, accessSource).uInt.let { it or it.shl(16) }
+            else bus.idle()
+
             bus.write16(
                 dest,
                 latch.last.ushr(dest.and(2) shl 3).toShort(),
-                access
+                accessDestination
             )
-            access = AccessType.Sequential
+            accessSource = AccessType.Sequential
+            accessDestination = AccessType.Sequential
         }
 
         endTransfer()

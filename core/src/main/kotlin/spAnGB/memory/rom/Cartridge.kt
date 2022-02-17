@@ -36,6 +36,8 @@ class Cartridge(
         persistence = persistenceType?.let { (_, type) ->
             when (type) {
                 "SRAM_V" -> SRAM()
+                "FLASH1M_V" -> FlashStub()
+//                "EEPROM_V" -> SRAM()
                 else -> TODO("$type not supported rn")
             }
         } ?: Memory.silentStub
