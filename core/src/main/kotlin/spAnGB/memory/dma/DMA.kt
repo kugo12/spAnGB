@@ -101,7 +101,7 @@ class DMA(
                 latch.destination = destination.value
 
                 if (startTiming == DMAStart.Immediate) {
-                    scheduler.schedule(3, manager.immediateTask)  // TODO: should be 2, but 3 works better?
+                    scheduler.schedule(2, manager.immediateTask)
                 }
             }
         } else {

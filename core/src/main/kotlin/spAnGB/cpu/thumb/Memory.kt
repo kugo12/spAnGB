@@ -11,12 +11,12 @@ import spAnGB.utils.uInt
 val thumbLdrPcrelImm = ThumbInstruction(
     { "LdrPcrelImm" },
     {
-        bus.idle()
         prefetchAccess = NonSequential
 
         val immediate = instr.and(0xFF).shl(2)
         val address = pc.and(3.inv()) + immediate
         registers[(instr ushr 8) and 0x7] = bus.read32(address).rotateRight(address.and(0x3).shl(3))
+        bus.idle()
     }
 )
 
@@ -31,11 +31,11 @@ val thumbLdrStrRegOff = ThumbInstruction(
         val rd = instr and 0x7
 
         if (instr bit 11) {  // load
-            bus.idle()
             registers[rd] = when (instr bit 10) {
                 true -> bus.read8(address).uInt
                 false -> bus.read32(address).rotateRight(address.and(3).shl(3))
             }
+            bus.idle()
         } else {  // store
             when (instr bit 10) {
                 true -> bus.write8(address, registers[rd].toByte())
@@ -57,33 +57,33 @@ val thumbStrh = ThumbInstruction(
 val thumbLdrh = ThumbInstruction(
     { "Ldrh" },
     {
-        bus.idle()
         prefetchAccess = NonSequential
 
         val address = getAddress(instr)
         registers[instr and 0x7] = bus.read16(address).uInt.rotateRight(address.and(0x1).shl(3))
+        bus.idle()
     }
 )
 
 val thumbLdsb = ThumbInstruction(
     { "Ldsb" },
     {
-        bus.idle()
         prefetchAccess = NonSequential
 
         val address = getAddress(instr)
         registers[instr and 0x7] = bus.read8(address).toInt()
+        bus.idle()
     }
 )
 
 val thumbLdsh = ThumbInstruction(
     { "Ldsh" },
     {
-        bus.idle()
         prefetchAccess = NonSequential
 
         val address = getAddress(instr)
         registers[instr and 0x7] = bus.read16(address).toInt().shr((address.and(1).shl(3)))
+        bus.idle()
     }
 )
 
@@ -96,11 +96,11 @@ val thumbLdrStrImmOff = ThumbInstruction(
         val rd = instr and 0x7
 
         if (instr bit 11) {
-            bus.idle()
             registers[rd] = when (instr bit 12) {
                 true -> bus.read8(address + offset.ushr(2)).uInt
                 false -> bus.read32(address + offset).rotateRight(address.plus(offset).and(0x3).shl(3))
             }
+            bus.idle()
         } else {
             when (instr bit 12) {
                 true -> bus.write8(address + offset.ushr(2), registers[rd].toByte())
@@ -118,8 +118,8 @@ val thumbLdrhStrhImmOff = ThumbInstruction(
         val rd = instr and 0x7
 
         if (instr bit 11) {
-            bus.idle()
             registers[rd] = bus.read16(address).uInt.rotateRight((address and 1) shl 3)
+            bus.idle()
         } else {
             bus.write16(address, registers[rd].toShort())
         }
@@ -134,8 +134,8 @@ val thumbLdrStrSpRel = ThumbInstruction(
         val rd = (instr ushr 8) and 0x7
 
         if (instr bit 11) {
-            bus.idle()
             registers[rd] = bus.read32(address).rotateRight((address and 0x3) shl 3)
+            bus.idle()
         } else {
             bus.write32(address, registers[rd])
         }
@@ -197,7 +197,6 @@ val thumbPush = ThumbInstruction(
 val thumbPop = ThumbInstruction(
     { "Pop" },
     {
-        bus.idle()
         prefetchAccess = NonSequential
         var spUpdate = 0
         var access = NonSequential
@@ -218,6 +217,7 @@ val thumbPop = ThumbInstruction(
         }
 
         registers[13] += spUpdate
+        bus.idle()
     }
 )
 
@@ -257,7 +257,6 @@ val thumbStmia = ThumbInstruction(
 val thumbLdmia = ThumbInstruction(
     { "Ldmia" },
     {
-        bus.idle()
         prefetchAccess = NonSequential
         var update = 0
         val rb = (instr ushr 8) and 0x7
@@ -278,5 +277,6 @@ val thumbLdmia = ThumbInstruction(
         }
 
         registers[rb] += update
+        bus.idle()
     }
 )

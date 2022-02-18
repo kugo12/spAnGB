@@ -46,12 +46,14 @@ class Timer(
     }
 
     fun schedule(wasEnabled: Boolean) {
+        // 681 90
         // TODO: remove this hack
         fast = counter == 0xFFFF && nextTick == 1L
-        val x = 4
-        start = scheduler.counter + x - (!fast).toInt()
+        val x = 2
+        start = scheduler.counter + x
         isRunning = true
         task = scheduler.schedule((0x10000 - counter.toShort().uLong) * nextTick + x, overflowTask)
+
     }
 
     override fun read8(address: Int): Byte {
@@ -62,7 +64,9 @@ class Timer(
         if (address bit 1) {  // Control
             control.toShort()
         } else {
-            currentCounter.toShort()
+            currentCounter.toShort().also {
+                if (interrupt == Interrupt.Timer3) println(currentCounter.hex)
+            }
         }
 
     override fun read32(address: Int): Int {
@@ -93,13 +97,8 @@ class Timer(
             }
 
             if (isEnabled) {
-                if (!wasEnabled) {
-                    counter = reload
-                }
-
-                if (!isCountUp && !isRunning) {
-                    schedule(wasEnabled)
-                }
+                if (!wasEnabled) counter = reload
+                if (!isCountUp && !isRunning) schedule(wasEnabled)
             }
         } else {
             reload = value.uInt
@@ -126,7 +125,9 @@ class Timer(
 
     fun onOverflow() {
         if (isIrqEnabled) ir[interrupt] = true
-        while (counter >= 0x10000) counter -= 0x10000 - reload  // TODO
+        while (counter >= 0x10000) {
+            counter -= 0x10000 - reload
+        }  // TODO
 
         incrementNextTimer?.invoke()
     }

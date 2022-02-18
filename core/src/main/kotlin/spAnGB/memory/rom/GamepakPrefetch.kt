@@ -9,6 +9,8 @@ class GamepakPrefetch(
     val waitCnt: WaitstateControl,
     val cpu: CPU
 ) {
+    val bus = cpu.bus
+    val dmaManager = cpu.bus.dmaManager
     inline val isEnabled get() = waitCnt.isPrefetchEnabled
 
     var mBytes = 4
@@ -23,19 +25,23 @@ class GamepakPrefetch(
 
     fun tick() {
         if (isEnabled && isActive) {
-            bubble = cyclesLeft == 1 || (mBytes == 4 && cyclesLeft == mCycles / 2 + 1)
             if (--cyclesLeft <= 0) {
                 ++size
                 cyclesLeft = mCycles
-                if (size >= mSize) isActive = false
+                if (size >= mSize) {
+                    isActive = false
+                    bubble = false
+                    return
+                }
             }
+            bubble = cyclesLeft == 1 || (mBytes == 4 && cyclesLeft == mCycles / 2 + 1)
         }
     }
 
     inline fun <reified W> prefetch(address: Int, cycles: Int, sequential: Int): Int {
         // TODO: weird DMA and prefetch tick penalty
 
-        if (!isEnabled || Unit is W || address != cpu.pc) {
+        if (!isEnabled || Unit is W || dmaManager.isDmaActive || address != cpu.pc) {
             return cycles +
                     (bubble && isEnabled && isActive).toInt()
                         .also { stop() }
@@ -52,7 +58,6 @@ class GamepakPrefetch(
                 headAddress += mBytes * (size + 1)
                 size = 0
                 cyclesLeft += sequential
-                bubble = false
             }
         }
 

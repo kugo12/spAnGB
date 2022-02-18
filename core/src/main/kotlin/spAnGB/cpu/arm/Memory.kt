@@ -10,7 +10,6 @@ import spAnGB.utils.uInt
 val armSwp = ARMInstruction(
     { "Swp" },
     {
-        bus.idle()
         prefetchAccess = NonSequential
 
         val rn = registers[(instr ushr 16) and 0xF]
@@ -32,13 +31,13 @@ val armSwp = ARMInstruction(
                 bus.write32(rn, rm, NonSequential)
             }
         }
+        bus.idle()
     }
 )
 
 val armLdr = ARMInstruction(
     { "Ldr" },
     {
-        bus.idle()
         prefetchAccess = NonSequential
 
         val base = (instruction ushr 16) and 0xF
@@ -63,6 +62,7 @@ val armLdr = ARMInstruction(
         if ((pre && instruction bit 21) || !pre)
             setRegister(base, addressWithOffset)
         setRegister(srcOrDst, value)
+        bus.idle()
     }
 )
 
@@ -108,7 +108,6 @@ val armStr = ARMInstruction(
 val armLdrhsb = ARMInstruction(
     { "Ldrhsb" }, // LDRH LDRSH LDRB LDRSB
     {
-        bus.idle()
         prefetchAccess = NonSequential
 
         val base = (instruction ushr 16) and 0xF
@@ -137,6 +136,7 @@ val armLdrhsb = ARMInstruction(
         if ((pre && instruction bit 21) || !pre)
             setRegister(base, addressWithOffset)
         setRegister(srcOrDst, value)
+        bus.idle()
     }
 )
 
@@ -248,7 +248,6 @@ val armStm = ARMInstruction(  // STM and LDM sequential stuff
 val armLdm = ARMInstruction(
     { "ldm" },
     {
-        bus.idle()
         prefetchAccess = NonSequential
 
         var pre = instr bit 24
@@ -297,5 +296,6 @@ val armLdm = ARMInstruction(
         if (instr bit 21 && !(instr bit base)) {
             setRegister(base, newAddress)
         }
+        bus.idle()
     }
 )
