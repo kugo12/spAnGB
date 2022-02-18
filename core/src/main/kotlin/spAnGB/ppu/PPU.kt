@@ -26,11 +26,11 @@ import java.nio.ByteBuffer
 
 // TODO: BIG REFACTORING
 
-const val HDRAW_CYCLES = 960L
-const val HBLANK_CYCLES = 272L
+const val HDRAW_CYCLES = 1006L
+const val HBLANK_CYCLES = 226L
 const val SCANLINE_CYCLES = HDRAW_CYCLES + HBLANK_CYCLES
 
-const val VBLANK_HEIGHT = 68
+const val VBLANK_HEIGHT = 67
 const val VDRAW_HEIGHT = 160
 const val TOTAL_HEIGHT = VBLANK_HEIGHT + VDRAW_HEIGHT
 
@@ -82,6 +82,7 @@ class PPU(
     val hdrawRef = ::hdraw
     val hblankRef = ::hblank
     val vblankRef = ::vblank
+    val vblhbl = ::hblankInVblank
 
     init {
         scheduler.schedule(HDRAW_CYCLES, hdrawRef)
@@ -165,10 +166,10 @@ class PPU(
             val coefficient = brightness.coefficient
             when (blend.mode) {
                 2 -> {
-                    transformColors { it + ((31 - it)*coefficient).ushr(4) }
+                    transformColors { it + ((31 - it) * coefficient).ushr(4) }
                 }
                 3 -> {
-                    transformColors { it - (it*coefficient).ushr(4) }
+                    transformColors { it - (it * coefficient).ushr(4) }
                 }
                 else -> -1
             }
@@ -199,7 +200,8 @@ class PPU(
                         break
                     }
                     if (lineBuffers[bg.index][pixel] != 0) {
-                        color = lineBuffers[bg.index][pixel].brightnessBlend(shouldBlend(bg.index, false, false)).toColor()
+                        color =
+                            lineBuffers[bg.index][pixel].brightnessBlend(shouldBlend(bg.index, false, false)).toColor()
                         break
                     }
                 }
@@ -222,14 +224,22 @@ class PPU(
         for (bg in bgs) {
             if (isEnabled[bg.index] && lineBuffers[bg.index][pixel] != 0) {
                 value = if (isEnabled[LUT_OBJ] && spritePriorities[pixel] <= bg.priority) {
-                    joinedSprites[pixel].brightnessBlend(shouldBlend(-1, false, true) && isEnabled[LUT_SPECIAL]).toColor()
+                    joinedSprites[pixel].brightnessBlend(shouldBlend(-1, false, true) && isEnabled[LUT_SPECIAL])
+                        .toColor()
                 } else {
-                    lineBuffers[bg.index][pixel].brightnessBlend(shouldBlend(bg.index, false, false) && isEnabled[LUT_SPECIAL]).toColor()
+                    lineBuffers[bg.index][pixel].brightnessBlend(
+                        shouldBlend(
+                            bg.index,
+                            false,
+                            false
+                        ) && isEnabled[LUT_SPECIAL]
+                    ).toColor()
                 }
 
                 break
             } else if (isEnabled[LUT_OBJ] && spritePriorities[pixel] <= bg.priority) {
-                value = joinedSprites[pixel].brightnessBlend(shouldBlend(-1, false, true) && isEnabled[LUT_SPECIAL]).toColor()
+                value = joinedSprites[pixel].brightnessBlend(shouldBlend(-1, false, true) && isEnabled[LUT_SPECIAL])
+                    .toColor()
                 break
             }
         }
@@ -391,12 +401,12 @@ class PPU(
             bgReference.lock()
 
             scheduler.schedule(-1, dmaManager.vblankTask)
-            scheduler.schedule(SCANLINE_CYCLES, vblankRef, taskIndex)
+            scheduler.schedule(HDRAW_CYCLES, vblankRef, taskIndex)
             blitFramebuffer()
 
             displayStat[DisplayStatFlag.HBLANK] = false
-            displayStat[DisplayStatFlag.VBLANK] = true
 
+            displayStat[DisplayStatFlag.VBLANK] = true
             if (displayStat[DisplayStatFlag.VBLANK_IRQ]) {
                 mmio.ir[Interrupt.VBlank] = true
             }
@@ -407,18 +417,29 @@ class PPU(
     }
 
     fun vblank(taskIndex: Int) {
-        vcount.ly += 1
+        displayStat[DisplayStatFlag.HBLANK] = true
+        if (displayStat[DisplayStatFlag.HBLANK_IRQ]) {
+            mmio.ir[Interrupt.HBlank] = true
+        }
+
+        scheduler.schedule(HBLANK_CYCLES, vblhbl, taskIndex)
+    }
+
+
+    fun hblankInVblank(taskIndex: Int) {
+        displayStat[DisplayStatFlag.HBLANK] = false
 
         if (vcount.ly >= TOTAL_HEIGHT) {
             bgReference.unlock()
             bgReference.copyToInternal()
-
-            scheduler.schedule(HDRAW_CYCLES, hdrawRef, taskIndex)
-
-            displayStat[DisplayStatFlag.VBLANK] = false
             vcount.ly = 0
+            scheduler.schedule(HDRAW_CYCLES, hdrawRef, taskIndex)
         } else {
-            scheduler.schedule(SCANLINE_CYCLES, vblankRef, taskIndex)
+            vcount.ly += 1
+            if (vcount.ly == 227) {
+                displayStat[DisplayStatFlag.VBLANK] = false
+            }
+            scheduler.schedule(HDRAW_CYCLES, vblankRef, taskIndex)
         }
 
         checkVCounter()

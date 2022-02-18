@@ -44,4 +44,9 @@ class Scheduler {
 
         counter += 1
     }
+
+    inline fun task(crossinline func: () -> Unit): SchedulerTask = {
+        clear(it)
+        func()
+    }
 }

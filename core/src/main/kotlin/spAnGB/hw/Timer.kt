@@ -5,11 +5,8 @@ import spAnGB.SchedulerTask
 import spAnGB.memory.Memory
 import spAnGB.memory.mmio.Interrupt
 import spAnGB.memory.mmio.InterruptRequest
-import spAnGB.utils.bit
-import spAnGB.utils.uInt
-import spAnGB.utils.uLong
+import spAnGB.utils.*
 
-@JvmField
 val prescalerLut = longArrayOf(1, 64, 256, 1024)
 
 class Timer(
@@ -32,18 +29,27 @@ class Timer(
     inline val isIrqEnabled get() = control bit 6
     inline val isEnabled get() = control bit 7
 
+    var fast = false  // TODO: less hacky way to handle this
+
+    inline val currentCounter: Int get() =
+        if (isRunning)
+            (counter + (scheduler.counter - start) / nextTick).toInt()
+        else
+            counter
+
 
     private val overflowTask: SchedulerTask = ::overflow
 
     fun reschedule(taskIndex: Int) {
         start = scheduler.counter
-        isRunning = true
         scheduler.schedule((0x10000 - counter.toShort().uLong) * nextTick, overflowTask, taskIndex)
     }
 
     fun schedule(wasEnabled: Boolean) {
-        val x = if (!wasEnabled) 3 else 0
-        start = scheduler.counter + x
+        // TODO: remove this hack
+        fast = counter == 0xFFFF && nextTick == 1L
+        val x = 4
+        start = scheduler.counter + x - (!fast).toInt()
         isRunning = true
         task = scheduler.schedule((0x10000 - counter.toShort().uLong) * nextTick + x, overflowTask)
     }
@@ -56,10 +62,7 @@ class Timer(
         if (address bit 1) {  // Control
             control.toShort()
         } else {
-            if (isRunning)
-                (counter + (scheduler.counter - start) / nextTick).toShort()
-            else
-                counter.toShort()
+            currentCounter.toShort()
         }
 
     override fun read32(address: Int): Int {
@@ -76,17 +79,17 @@ class Timer(
             val wasTickingAt = nextTick
             control = value.toInt()
 
+            if (interrupt == Interrupt.Timer0) {
+                control = control and 4.inv()
+            }
+
             if (isRunning && (isCountUp || !isEnabled)) {
-                scheduler.schedule(3, {
+                isRunning = false
+                scheduler.schedule(2, {
                     scheduler.clear(it)
                     counter += ((scheduler.counter - start) / wasTickingAt).toInt()
                     if (counter > 0xFFFF) onOverflow()
-                    isRunning = false
                 }, task)
-            }
-
-            if (interrupt == Interrupt.Timer0) {
-                control = control and 4.inv()
             }
 
             if (isEnabled) {
@@ -116,15 +119,15 @@ class Timer(
 
 
     private inline fun overflow(taskIndex: Int) {
+        counter = currentCounter
         onOverflow()
         reschedule(taskIndex)
     }
 
     fun onOverflow() {
-        if (isIrqEnabled) {
-            ir[interrupt] = true
-        }
+        if (isIrqEnabled) ir[interrupt] = true
+        while (counter >= 0x10000) counter -= 0x10000 - reload  // TODO
+
         incrementNextTimer?.invoke()
-        counter = reload
     }
 }

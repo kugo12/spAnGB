@@ -37,7 +37,7 @@ class Cartridge(
             when (type) {
                 "SRAM_V" -> SRAM()
                 "FLASH1M_V" -> FlashStub()
-//                "EEPROM_V" -> SRAM()
+                "EEPROM_V" -> SRAM()
                 else -> TODO("$type not supported rn")
             }
         } ?: Memory.silentStub

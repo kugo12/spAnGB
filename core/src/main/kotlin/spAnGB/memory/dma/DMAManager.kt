@@ -1,6 +1,5 @@
 package spAnGB.memory.dma
 
-import spAnGB.Scheduler
 import spAnGB.memory.Bus
 
 class DMAManager(
@@ -14,24 +13,39 @@ class DMAManager(
         DMA(this, 2),
         DMA(this, 3)
     )
-    var isDmaActive = false
-    val vblankTask = ::scheduleVblank
-    val hblankTask = ::scheduleHblank
 
-    private fun scheduleVblank(taskIndex: Int) {
-        scheduler.clear(taskIndex)
-        transfer(DMA.DMAStart.VBlank)
-    }
+    var activeDma = booleanArrayOf(false, false, false, false)
 
-    private fun scheduleHblank(taskIndex: Int) {
-        scheduler.clear(taskIndex)
-        transfer(DMA.DMAStart.HBlank)
-    }
+    inline val isDmaActive get() = activeDma.any { it }  // TODO
+
+    val vblankTask = scheduler.task { transfer(DMA.DMAStart.VBlank) }
+    val hblankTask = scheduler.task { transfer(DMA.DMAStart.HBlank) }
+    val immediateTask = scheduler.task { transfer(DMA.DMAStart.Immediate) }
 
     private fun transfer(timing: DMA.DMAStart) {
-        dma.forEach {
+        for (it in dma) {
             if (it.enabled && it.startTiming == timing)
-                it.transfer()
+                it.start()
+        }
+    }
+
+    private fun DMA.start() {  // FIXME
+        activeDma[index] = true
+        earlyExit = false
+
+        for (it in 0 until index)
+            if (activeDma[it]) return
+
+        for (it in index+1 .. 3)
+            if (activeDma[it]) dma[it].earlyExit = true
+
+        transfer()
+
+        if (!earlyExit) {
+            for (it in index+1 .. 3)
+                if (activeDma[it] && dma[it].enabled) dma[it].start()
+        } else {
+            earlyExit = false
         }
     }
 }

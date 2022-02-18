@@ -1,5 +1,7 @@
 package spAnGB.memory.mmio
 
+import spAnGB.hw.KeyInput
+import spAnGB.hw.Serial
 import spAnGB.hw.Timer
 import spAnGB.memory.Bus
 import spAnGB.memory.Memory
@@ -8,12 +10,13 @@ import spAnGB.utils.uInt
 class MMIO(
     val bus: Bus,
 ) : Memory {
-    val keyInput = KeyInput()
-
     val ime = InterruptMasterEnable()
     val ir = InterruptRequest()
     val ie = InterruptEnable()
     val halt = Halt()
+
+    val serial = Serial(bus.scheduler, ir)
+    val keyInput = KeyInput(ir)
 
     val timers = run {
         val t3 = Timer(ir, bus.scheduler, Interrupt.Timer3)
@@ -99,16 +102,19 @@ class MMIO(
             0x108, 0x10A -> timers[2]
             0x10C, 0x10E -> timers[3]
 
-            0x130 -> keyInput
-            0x200 -> ie
-            0x202 -> ir
+            0x120, 0x121, 0x122, 0x123 -> serial.data32
+            0x128, 0x129 -> serial
+            0x12A -> serial.data8
+            0x130, 0x131 -> keyInput
+            0x132, 0x133 -> keyInput.irqControl
+            0x134, 0x135 -> serial.rCnt
+            0x200, 0x201 -> ie
+            0x202, 0x203 -> ir
             0x204, 0x205 -> bus.waitCnt
             0x208 -> ime
             0x301 -> halt
 
             0x20A -> Memory.silentStub  // TODO
-            0x134 -> Memory.silentStub
-            0x128 -> Memory.silentStub
 
             else -> Memory.stub
         }

@@ -4,6 +4,7 @@ import spAnGB.memory.AccessType
 import spAnGB.memory.Memory
 import spAnGB.memory.dma.mmio.DMAAddress
 import spAnGB.utils.bit
+import spAnGB.utils.hex
 import spAnGB.utils.toInt
 import spAnGB.utils.uInt
 
@@ -21,14 +22,16 @@ class DMA(
 ) : Memory {
     val bus = manager.bus
     val cpu = bus.cpu
+    val ir = bus.mmio.ir
     val scheduler = bus.scheduler
-    var active: Boolean = false
     val mask = if (index == 3) 0xFFFF else 0x3FFF
 
     val destination = DMAAddress(if (index == 3) 0xFFF else 0x7FF)
     val source = DMAAddress(if (index == 0) 0x7FF else 0xFFF)
 
     val latch = DMALatch()
+
+    var earlyExit = false
 
     enum class AddrControl {
         Increment, Decrement, Fixed, Reload;
@@ -98,7 +101,7 @@ class DMA(
                 latch.destination = destination.value
 
                 if (startTiming == DMAStart.Immediate) {
-                    scheduler.schedule(3, ::transfer)  // TODO: should be 2, but 3 works better?
+                    scheduler.schedule(3, manager.immediateTask)  // TODO: should be 2, but 3 works better?
                 }
             }
         } else {
@@ -111,10 +114,7 @@ class DMA(
         TODO()
     }
 
-    fun transfer(taskIndex: Int = -1) {
-        if (taskIndex != -1) scheduler.clear(taskIndex)
-        active = true
-        manager.isDmaActive = true
+    fun transfer() {
         bus.idle()
 
         val isSourceInRom = latch.source ushr 24 in 0x8..0xD
@@ -125,8 +125,6 @@ class DMA(
         if (is32Bit) transferWords() else transferHalfWords()
 
         cpu.prefetchAccess = AccessType.NonSequential
-        manager.isDmaActive = false
-        active = false
         bus.idle()
     }
 
@@ -164,6 +162,8 @@ class DMA(
             )
             accessSource = AccessType.Sequential
             accessDestination = AccessType.Sequential
+
+            if (earlyExit) return
         }
 
         endTransfer()
@@ -203,20 +203,28 @@ class DMA(
             )
             accessSource = AccessType.Sequential
             accessDestination = AccessType.Sequential
+
+            if (earlyExit) return
         }
 
         endTransfer()
     }
 
     fun endTransfer() {
-        if (!repeat || startTiming == DMAStart.Immediate) {
-            enabled = false
-        } else {
-            latch.count = count
-            if (destAddrControl == AddrControl.Reload) {
-                latch.destination = destination.value
-            }
+        manager.activeDma[index] = false
+        if (irqEnabled) {
+            ir.value = ir.value or (1 shl (8 + index))
         }
+
+        if (startTiming == DMAStart.Immediate) {
+            enabled = false
+            return
+        }
+
+        if (destAddrControl == AddrControl.Reload) {
+            latch.destination = destination.value
+        }
+        latch.count = count
     }
 
     inline fun getDestination(offset: Int) = when (destAddrControl) {
