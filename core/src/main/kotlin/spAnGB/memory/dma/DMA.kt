@@ -4,15 +4,20 @@ import spAnGB.memory.AccessType
 import spAnGB.memory.Memory
 import spAnGB.memory.dma.mmio.DMAAddress
 import spAnGB.utils.bit
-import spAnGB.utils.hex
-import spAnGB.utils.toInt
 import spAnGB.utils.uInt
 
 class DMALatch {
     var count = 0
     var source = 0
     var destination = 0
+
+//    var last
+//        get() = DMALatch.last
+//        set(value) { DMALatch.last = value }
+//
+//    companion object {
     var last = 0
+//    }
 }
 
 class DMA(
@@ -20,6 +25,7 @@ class DMA(
     val manager: DMAManager,
     val index: Int
 ) : Memory {
+    val cntMask = if (index == 3) 0xFFE0 else 0xF7E0
     val bus = manager.bus
     val cpu = bus.cpu
     val ir = bus.mmio.ir
@@ -77,10 +83,8 @@ class DMA(
         TODO("Not yet implemented")
     }
 
-    override fun read16(address: Int): Short {  // FIXME
-        return count.toShort()
-//        TODO("Not yet implemented")
-    }
+    override fun read16(address: Int): Short =
+        if (address bit 1) value.toShort() else 0
 
     override fun read32(address: Int): Int {
         TODO("Not yet implemented")
@@ -93,7 +97,7 @@ class DMA(
     override fun write16(address: Int, value: Short) {
         if (address bit 1) {
             val wasEnabled = enabled
-            this.value = value.toInt()
+            this.value = value.toInt() and cntMask
 
             if (!wasEnabled && enabled) {
                 latch.count = count

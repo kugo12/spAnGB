@@ -3,7 +3,7 @@ package spAnGB.ppu.mmio.win
 import spAnGB.memory.mmio.SimpleMMIO
 import spAnGB.utils.bit
 
-class WindowInsideControl: SimpleMMIO() {
+class WindowInsideControl: SimpleMMIO(mask = 0x3F3F) {
     inline val isWin0Bg0 get() = value bit 0
     inline val isWin0Bg1 get() = value bit 1
     inline val isWin0Bg2 get() = value bit 2
@@ -22,7 +22,7 @@ class WindowInsideControl: SimpleMMIO() {
     inline infix fun isWin1Bg(index: Int) = value bit (index + 8)
 }
 
-class WindowOutsideControl: SimpleMMIO() {
+class WindowOutsideControl: SimpleMMIO(mask = 0x3F3F) {
     inline val isBg0 get() = value bit 0
     inline val isBg1 get() = value bit 1
     inline val isBg2 get() = value bit 2

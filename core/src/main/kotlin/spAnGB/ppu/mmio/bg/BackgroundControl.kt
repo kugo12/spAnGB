@@ -5,7 +5,9 @@ import spAnGB.utils.bit
 
 class BackgroundControl(
     val index: Int
-) : SimpleMMIO() {
+) : SimpleMMIO(
+    mask = if (index in 0..1) 0xDFFF else 0xFFFF
+) {
     inline val priority: Int get() = value and 0x3
     inline val characterBaseBlock: Int get() = value.and(0xC).ushr(2)
     inline val mosaic: Boolean get() = value bit 6

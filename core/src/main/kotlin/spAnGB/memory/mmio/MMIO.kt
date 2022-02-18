@@ -27,21 +27,21 @@ class MMIO(
         arrayOf(t0, t1, t2, t3)
     }
 
-    override fun read8(address: Int) = get(address).read8(address)
-    override fun read16(address: Int) = get(address).read16(address)
+    override fun read8(address: Int) = getReadable(address).read8(address)
+    override fun read16(address: Int) = getReadable(address).read16(address)
     override fun read32(address: Int) =
         read16(address).uInt.or(
             read16(address + 2).uInt.shl(16)
         )
 
-    override fun write8(address: Int, value: Byte) = get(address).write8(address, value)
-    override fun write16(address: Int, value: Short) = get(address).write16(address, value)
+    override fun write8(address: Int, value: Byte) = getWritable(address).write8(address, value)
+    override fun write16(address: Int, value: Short) = getWritable(address).write16(address, value)
     override fun write32(address: Int, value: Int) {
-        get(address).write16(address, value.toShort())
-        get(address + 2).write16(address + 2, value.ushr(16).toShort())
+        getWritable(address).write16(address, value.toShort())
+        getWritable(address + 2).write16(address + 2, value.ushr(16).toShort())
     }
 
-    inline operator fun get(address: Int): Memory =
+    inline fun getReadable(address: Int): Memory =
         when (address and 0xFFFFFF) {
             0x0, 0x1 -> bus.ppu.displayControl
             0x4, 0x5 -> bus.ppu.displayStat
@@ -51,7 +51,50 @@ class MMIO(
             0xC, 0xD -> bus.ppu.bgControl[2]
             0xE, 0xF -> bus.ppu.bgControl[3]
 
-            0x10, 0x11 -> bus.ppu.bgXOffset[0]  // TODO: offsets should be write only
+            0x48, 0x49 -> bus.ppu.winIn
+            0x4A, 0x4B -> bus.ppu.winOut
+
+            0x50, 0x51 -> bus.ppu.blend
+            0x52, 0x53 -> bus.ppu.alpha
+
+            0xB8, 0xBA -> bus.dma[0]
+            0xC4, 0xC6 -> bus.dma[1]
+            0xD0, 0xD2 -> bus.dma[2]
+            0xDC, 0xDE -> bus.dma[3]
+
+            0x100, 0x102 -> timers[0]
+            0x104, 0x106 -> timers[1]
+            0x108, 0x10A -> timers[2]
+            0x10C, 0x10E -> timers[3]
+
+            0x120, 0x121, 0x122, 0x123 -> serial.data32
+            0x128, 0x129 -> serial
+            0x12A -> serial.data8
+            0x130, 0x131 -> keyInput
+            0x132, 0x133 -> keyInput.irqControl
+            0x134, 0x135 -> serial.rCnt
+            0x200, 0x201 -> ie
+            0x202, 0x203 -> ir
+            0x204, 0x205 -> bus.waitCnt
+            0x208 -> ime
+            0x301 -> halt
+
+            0x66, 0x67, 0x6E, 0x6F, 0x76, 0x77, 0x7A, 0x7B, 0x7E, 0x7F, 0x86, 0x87, 0x8A, 0x8B -> Memory.zero
+
+            else -> bus.unusedMemory
+        }
+
+    inline fun getWritable(address: Int): Memory =
+        when (address and 0xFFFFFF) {
+            0x0, 0x1 -> bus.ppu.displayControl
+            0x4, 0x5 -> bus.ppu.displayStat
+            0x6, 0x7 -> bus.ppu.vcount
+            0x8, 0x9 -> bus.ppu.bgControl[0]
+            0xA, 0xB -> bus.ppu.bgControl[1]
+            0xC, 0xD -> bus.ppu.bgControl[2]
+            0xE, 0xF -> bus.ppu.bgControl[3]
+
+            0x10, 0x11 -> bus.ppu.bgXOffset[0]
             0x12, 0x13 -> bus.ppu.bgYOffset[0]
             0x14, 0x15 -> bus.ppu.bgXOffset[1]
             0x16, 0x17 -> bus.ppu.bgYOffset[1]
@@ -113,8 +156,6 @@ class MMIO(
             0x204, 0x205 -> bus.waitCnt
             0x208 -> ime
             0x301 -> halt
-
-            0x20A -> Memory.silentStub  // TODO
 
             else -> Memory.stub
         }

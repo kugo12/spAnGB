@@ -3,7 +3,7 @@ package spAnGB.ppu.mmio.blend
 import spAnGB.memory.mmio.SimpleMMIO
 import spAnGB.utils.bit
 
-class BlendControl: SimpleMMIO() {
+class BlendControl: SimpleMMIO(mask = 0x3FFF) {
     inline val firstBg0 get() = value bit 0
     inline val firstBg1 get() = value bit 1
     inline val firstBg2 get() = value bit 2

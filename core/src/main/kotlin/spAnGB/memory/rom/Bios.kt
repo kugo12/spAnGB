@@ -14,7 +14,7 @@ class Bios(
     file: File,
     val bus: Bus,
     val cpu: CPU,
-    val unusedMemory: UnusedMemory
+    val unusedMemory: Memory
 ): Memory {
     val size: Int
     val byteBuffer: ByteBuffer = file.readBytes().let {

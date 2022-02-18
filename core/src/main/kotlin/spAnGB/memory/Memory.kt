@@ -22,6 +22,7 @@ interface Memory {
             override fun write32(address: Int, value: Int) {}
         }
         val stub: Memory = silentStub // MemoryStub()
+        val zero: Memory = silentStub
     }
 }
 
