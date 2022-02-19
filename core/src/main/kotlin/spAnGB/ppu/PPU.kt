@@ -394,6 +394,7 @@ class PPU(
     }
 
     fun hblank(taskIndex: Int) {
+        displayStat[DisplayStatFlag.HBLANK] = false
         vcount.ly += 1
         checkVCounter()
 
@@ -405,8 +406,6 @@ class PPU(
             scheduler.schedule(2, dmaManager.vblankTask)
             scheduler.schedule(HDRAW_CYCLES, vblankRef, taskIndex)
             blitFramebuffer()
-
-            displayStat[DisplayStatFlag.HBLANK] = false
 
             displayStat[DisplayStatFlag.VBLANK] = true
             if (displayStat[DisplayStatFlag.VBLANK_IRQ]) {
