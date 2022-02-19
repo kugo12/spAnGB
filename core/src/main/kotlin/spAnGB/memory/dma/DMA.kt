@@ -13,14 +13,7 @@ class DMALatch {
     var count = 0
     var source = 0
     var destination = 0
-
-    //    var last
-//        get() = DMALatch.last
-//        set(value) { DMALatch.last = value }
-//
-//    companion object {
     var last = 0
-//    }
 }
 
 class DMA(
@@ -121,7 +114,7 @@ class DMA(
     override fun write32(address: Int, value: Int) {}
 
     fun transfer() {
-        bus.idle()
+        earlyExit = false
 
         val isSourceInRom = latch.source ushr 24 in 0x8..0xD
         if (isSourceInRom) {
@@ -131,7 +124,6 @@ class DMA(
         if (is32Bit) transferWords() else transferHalfWords()
 
         cpu.prefetchAccess = AccessType.NonSequential
-        bus.idle()
     }
 
     private fun transferWords() {
@@ -167,6 +159,8 @@ class DMA(
         var wasRomAccessed = false
 
         while (latch.count > 0) {
+            if (earlyExit) return
+
             if (!wasRomAccessed) {
                 when {
                     latch.source >= 0x8000000 -> {
@@ -191,7 +185,6 @@ class DMA(
             latch.destination += destinationOffset
             latch.source += sourceOffset
             --latch.count
-//            if (earlyExit) return
         }
 
         endTransfer()

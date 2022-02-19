@@ -17,6 +17,9 @@ class DMAManager(
     var activeDma = booleanArrayOf(false, false, false, false)
 
     inline val isDmaActive get() = activeDma.any { it }  // TODO
+    inline val firstActiveDMA get() = activeDma.indexOfFirst { it }
+
+    var isRunning = false
 
     val vblankTask = scheduler.task { transfer(DMA.DMAStart.VBlank) }
     val hblankTask = scheduler.task { transfer(DMA.DMAStart.HBlank) }
@@ -26,34 +29,35 @@ class DMAManager(
     private fun transfer(timing: DMA.DMAStart) {
         for (it in dma) {
             if (it.enabled && it.startTiming == timing)
-                it.start()
+                activeDma[it.index] = true
         }
+
+        start()
     }
 
-    private fun DMA.start() {  // FIXME
-        activeDma[index] = true
-        earlyExit = false
+    private fun start() {
+        if (isRunning) {
+            for (it in firstActiveDMA + 1..3)
+                if (activeDma[it]) dma[it].earlyExit = true
 
-        for (it in 0 until index)
-            if (activeDma[it]) return
-
-        for (it in index+1 .. 3)
-            if (activeDma[it]) dma[it].earlyExit = true
-
-        transfer()
-
-        if (!earlyExit) {
-            for (it in index+1 .. 3)
-                if (activeDma[it] && dma[it].enabled) dma[it].start()
-        } else {
-            earlyExit = false
+            return
         }
+
+        isRunning = true
+        bus.idle()
+
+        while (isDmaActive) dma[firstActiveDMA].transfer()
+        isRunning = false
+
+        bus.idle()
     }
 
     private fun transferVideo() {
         val dma = dma[3]
-        if (dma.enabled && dma.startTiming == DMA.DMAStart.Special)
-            dma.start()
+        if (dma.enabled && dma.startTiming == DMA.DMAStart.Special) {
+            activeDma[3] = true
+            start()
+        }
     }
 
     fun stopVideoTransfer() {

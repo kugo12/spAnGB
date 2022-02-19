@@ -29,8 +29,8 @@ class Bus(
     var cartridge: Memory = Memory.stub
     var cartridgePersistence: Memory = Memory.stub
 
-    private val wram = RAM(256 * KiB)
-    private val iwram = RAM(32 * KiB)
+    val wram = RAM(256 * KiB)
+    val iwram = RAM(32 * KiB)
 
     val cpu = CPU(this)
     val dmaManager = DMAManager(this)

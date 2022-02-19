@@ -9,7 +9,7 @@ import spAnGB.utils.*
 
 val prescalerLut = longArrayOf(1, 64, 256, 1024)
 
-class Timer(
+class Timer(  // FIXME
     val ir: InterruptRequest,
     val scheduler: Scheduler,
     val interrupt: Interrupt,
@@ -29,7 +29,6 @@ class Timer(
     inline val isIrqEnabled get() = control bit 6
     inline val isEnabled get() = control bit 7
 
-    var fast = false  // TODO: less hacky way to handle this
 
     inline val currentCounter: Int get() =
         if (isRunning)
@@ -45,15 +44,10 @@ class Timer(
         scheduler.schedule((0x10000 - counter.toShort().uLong) * nextTick, overflowTask, taskIndex)
     }
 
-    fun schedule(wasEnabled: Boolean) {
-        // 681 90
-        // TODO: remove this hack
-        fast = counter == 0xFFFF && nextTick == 1L
-        val x = 2
-        start = scheduler.counter + x
+    fun schedule() {
+        start = scheduler.counter + 2
         isRunning = true
-        task = scheduler.schedule((0x10000 - counter.toShort().uLong) * nextTick + x, overflowTask)
-
+        task = scheduler.schedule((0x10000 - counter.toShort().uLong) * nextTick, overflowTask)
     }
 
     override fun read8(address: Int): Byte {
@@ -98,7 +92,7 @@ class Timer(
 
             if (isEnabled) {
                 if (!wasEnabled) counter = reload
-                if (!isCountUp && !isRunning) schedule(wasEnabled)
+                if (!isCountUp && !isRunning) schedule()
             }
         } else {
             reload = value.uInt

@@ -12,12 +12,7 @@ import spAnGB.utils.uInt
 
 const val CLOCK_SPEED = 16777216
 
-class CPU(
-    b: Bus
-) {
-    @JvmField
-    val bus: Bus = b
-
+class CPU(val bus: Bus) {
     val mmio = bus.mmio
 
     @JvmField
@@ -206,7 +201,8 @@ class CPU(
                 val cpsrCopy = cpsr
 
                 setCPUMode(CPUMode.Interrupt)
-                if (state == CPUState.ARM) armStep() else thumbStep()
+//                if (state == CPUState.ARM) armStep() else thumbStep()
+                bus.step(2) // TODO
 
                 pc = 0x18
                 lr = link
