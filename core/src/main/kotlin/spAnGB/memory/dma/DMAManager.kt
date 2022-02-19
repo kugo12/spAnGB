@@ -21,6 +21,7 @@ class DMAManager(
     val vblankTask = scheduler.task { transfer(DMA.DMAStart.VBlank) }
     val hblankTask = scheduler.task { transfer(DMA.DMAStart.HBlank) }
     val immediateTask = scheduler.task { transfer(DMA.DMAStart.Immediate) }
+    val videoTask = scheduler.task { transferVideo() }
 
     private fun transfer(timing: DMA.DMAStart) {
         for (it in dma) {
@@ -47,5 +48,18 @@ class DMAManager(
         } else {
             earlyExit = false
         }
+    }
+
+    private fun transferVideo() {
+        val dma = dma[3]
+        if (dma.enabled && dma.startTiming == DMA.DMAStart.Special)
+            dma.start()
+    }
+
+    fun stopVideoTransfer() {
+        val dma = dma[3]
+
+        if (dma.enabled && dma.startTiming == DMA.DMAStart.Special)
+            dma.enabled = false
     }
 }

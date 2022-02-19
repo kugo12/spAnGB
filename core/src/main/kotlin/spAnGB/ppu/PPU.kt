@@ -30,7 +30,7 @@ const val HDRAW_CYCLES = 1006L
 const val HBLANK_CYCLES = 226L
 const val SCANLINE_CYCLES = HDRAW_CYCLES + HBLANK_CYCLES
 
-const val VBLANK_HEIGHT = 67
+const val VBLANK_HEIGHT = 68
 const val VDRAW_HEIGHT = 160
 const val TOTAL_HEIGHT = VBLANK_HEIGHT + VDRAW_HEIGHT
 
@@ -384,7 +384,7 @@ class PPU(
         renderSprites()
         renderMixedBuffers()
 
-        scheduler.schedule(-1, dmaManager.hblankTask)
+        scheduler.schedule(2, dmaManager.hblankTask)
         scheduler.schedule(HBLANK_CYCLES, hblankRef, taskIndex)
 
         displayStat[DisplayStatFlag.HBLANK] = true
@@ -397,10 +397,12 @@ class PPU(
         vcount.ly += 1
         checkVCounter()
 
+        if (vcount.ly >= 2) scheduler.schedule(2, dmaManager.videoTask)
+
         if (vcount.ly >= VDRAW_HEIGHT) {
             bgReference.lock()
 
-            scheduler.schedule(-1, dmaManager.vblankTask)
+            scheduler.schedule(2, dmaManager.vblankTask)
             scheduler.schedule(HDRAW_CYCLES, vblankRef, taskIndex)
             blitFramebuffer()
 
@@ -428,6 +430,10 @@ class PPU(
 
     fun hblankInVblank(taskIndex: Int) {
         displayStat[DisplayStatFlag.HBLANK] = false
+        vcount.ly += 1
+
+        if (vcount.ly < 162) scheduler.schedule(2, dmaManager.videoTask)
+        else if (vcount.ly == 162) dmaManager.stopVideoTransfer()
 
         if (vcount.ly >= TOTAL_HEIGHT) {
             bgReference.unlock()
@@ -435,7 +441,6 @@ class PPU(
             vcount.ly = 0
             scheduler.schedule(HDRAW_CYCLES, hdrawRef, taskIndex)
         } else {
-            vcount.ly += 1
             if (vcount.ly == 227) {
                 displayStat[DisplayStatFlag.VBLANK] = false
             }
