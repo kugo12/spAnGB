@@ -3,6 +3,7 @@
 package spAnGB.memory
 
 import spAnGB.Scheduler
+import spAnGB.apu.APU
 import spAnGB.cpu.CPU
 import spAnGB.memory.dma.DMAManager
 import spAnGB.memory.mmio.MMIO
@@ -23,6 +24,7 @@ class Bus(
     blitFramebuffer: () -> Unit,
     val scheduler: Scheduler
 ) {
+    val apu = APU()
     val mmio = MMIO(this)
     var bios: Memory = Memory.stub
     var unusedMemory: Memory = Memory.stub

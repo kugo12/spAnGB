@@ -13,7 +13,7 @@ abstract class SimpleMMIO(  // TODO: Remove this in future
         TODO("Not yet implemented")
     }
 
-    override fun read16(address: Int): Short = (value and mask).toShort()
+    override fun read16(address: Int): Short = value.toShort()
 
     override fun read32(address: Int): Int = 0
 
@@ -26,7 +26,7 @@ abstract class SimpleMMIO(  // TODO: Remove this in future
     }
 
     override fun write16(address: Int, value: Short) {
-        this.value = value.toInt() and mask
+        this.value = (this.value and mask.inv()) or (value.toInt() and mask)
     }
 
     override fun write32(address: Int, value: Int) {}
