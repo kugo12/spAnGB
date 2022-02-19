@@ -1,9 +1,12 @@
+@file:Suppress("NOTHING_TO_INLINE")
+
 package spAnGB.memory.dma
 
 import spAnGB.memory.AccessType
 import spAnGB.memory.Memory
 import spAnGB.memory.dma.mmio.DMAAddress
 import spAnGB.utils.bit
+import spAnGB.utils.hex
 import spAnGB.utils.uInt
 
 class DMALatch {
@@ -11,7 +14,7 @@ class DMALatch {
     var source = 0
     var destination = 0
 
-//    var last
+    //    var last
 //        get() = DMALatch.last
 //        set(value) { DMALatch.last = value }
 //
@@ -60,13 +63,17 @@ class DMA(
 //    12-13 DMA Start Timing  (0=Immediately, 1=VBlank, 2=HBlank, 3=Special)
 //    The 'Special' setting (Start Timing=3) depends on the DMA channel:
 //    DMA0=Prohibited, DMA1/DMA2=Sound FIFO, DMA3=Video Capture
-//    14    IRQ upon end of Word Count   (0=Disable, 1=Enable)
     var value = 0
 
     val destAddrControl: AddrControl get() = AddrControl.values[(value ushr 5) and 3]
     val sourceAddrControl: AddrControl get() = AddrControl.values[(value ushr 7) and 3]
     val repeat: Boolean get() = value bit 9
-    val is32Bit: Boolean get() = value bit 10
+    var is32Bit: Boolean
+        get() = value bit 10
+        set(newValue) {
+            value = value and (1.shl(10).inv())
+            if (newValue) value = value or (1.shl(10))
+        }
     val startTiming: DMAStart get() = DMAStart.values[(value ushr 12) and 3]
     val irqEnabled: Boolean get() = value bit 14
     var enabled: Boolean
@@ -86,10 +93,6 @@ class DMA(
     override fun read16(address: Int): Short =
         if (address bit 1) value.toShort() else 0
 
-    override fun read32(address: Int): Int {
-        TODO("Not yet implemented")
-    }
-
     override fun write8(address: Int, value: Byte) {
         TODO("Not yet implemented")
     }
@@ -100,9 +103,9 @@ class DMA(
             this.value = value.toInt() and cntMask
 
             if (!wasEnabled && enabled) {
-                latch.count = count
                 latch.source = source.value
                 latch.destination = destination.value
+                latch.count = count
 
                 if (startTiming == DMAStart.Immediate) {
                     scheduler.schedule(2, manager.immediateTask)
@@ -114,9 +117,8 @@ class DMA(
         }
     }
 
-    override fun write32(address: Int, value: Int) {
-        TODO()
-    }
+    override fun read32(address: Int): Int = 0
+    override fun write32(address: Int, value: Int) {}
 
     fun transfer() {
         bus.idle()
@@ -132,115 +134,97 @@ class DMA(
         bus.idle()
     }
 
-    fun transferWords() {
-        latch.destination = latch.destination and 3.inv()
-        latch.source = latch.source and 3.inv()
+    private fun transferWords() {
+        transferX(3.inv(), 4, bus::read32, bus::write32)
+    }
 
+    private fun transferHalfWords() {
+        transferX(
+            1.inv(),
+            2,
+            { address, access ->
+                bus.read16(address, access).uInt.let { it or it.shl(16) }
+            },
+            { address, value, access ->
+                bus.write16(address, value.ushr(address.and(2) shl 3).toShort(), access)
+            }
+        )
+    }
+
+    private inline fun transferX(
+        mask: Int,
+        size: Int,
+        read: (Int, AccessType) -> Int,
+        write: (Int, Int, AccessType) -> Unit
+    ) {
+        latch.destination = latch.destination and mask
+        latch.source = latch.source and mask
+
+        val destinationOffset = getDestinationOffset(size)
+        val sourceOffset = getSourceOffset(size)
         var accessSource = AccessType.Sequential
         var accessDestination = AccessType.Sequential
         var wasRomAccessed = false
-        for (it in 0 until latch.count) {
-            val source = getSource(it * 4)
-            val dest = getDestination(it * 4)
 
+        while (latch.count > 0) {
             if (!wasRomAccessed) {
                 when {
-                    source >= 0x8000000 -> {
+                    latch.source >= 0x8000000 -> {
                         accessSource = AccessType.NonSequential
                         wasRomAccessed = true
                     }
-                    dest >= 0x8000000 -> {
+                    latch.destination >= 0x8000000 -> {
                         accessDestination = AccessType.NonSequential
                         wasRomAccessed = true
                     }
                 }
             }
-            if (source >= 0x2000000)
-                latch.last = bus.read32(source, accessSource)
+
+            if (latch.source >= 0x2000000)
+                latch.last = read(latch.source, accessSource)
             else bus.idle()
 
-            bus.write32(
-                dest,
-                latch.last,
-                accessDestination
-            )
+            write(latch.destination, latch.last, accessDestination)
+
             accessSource = AccessType.Sequential
             accessDestination = AccessType.Sequential
-
-            if (earlyExit) return
+            latch.destination += destinationOffset
+            latch.source += sourceOffset
+            --latch.count
+//            if (earlyExit) return
         }
 
         endTransfer()
     }
 
-    fun transferHalfWords() {
-        latch.destination = latch.destination and 1.inv()
-        latch.source = latch.source and 1.inv()
-
-        var accessSource = AccessType.Sequential
-        var accessDestination = AccessType.Sequential
-        var wasRomAccessed = false
-        for (it in 0 until latch.count) {
-            val source = getSource(it * 2)
-            val dest = getDestination(it * 2)
-
-            if (!wasRomAccessed) {
-                when {
-                    source >= 0x8000000 -> {
-                        accessSource = AccessType.NonSequential
-                        wasRomAccessed = true
-                    }
-                    dest >= 0x8000000 -> {
-                        accessDestination = AccessType.NonSequential
-                        wasRomAccessed = true
-                    }
-                }
-            }
-            if (source >= 0x2000000)
-                latch.last = bus.read16(source, accessSource).uInt.let { it or it.shl(16) }
-            else bus.idle()
-
-            bus.write16(
-                dest,
-                latch.last.ushr(dest.and(2) shl 3).toShort(),
-                accessDestination
-            )
-            accessSource = AccessType.Sequential
-            accessDestination = AccessType.Sequential
-
-            if (earlyExit) return
-        }
-
-        endTransfer()
-    }
-
-    fun endTransfer() {
+    private fun endTransfer() {
         manager.activeDma[index] = false
         if (irqEnabled) {
             ir.value = ir.value or (1 shl (8 + index))
         }
 
-        if (startTiming == DMAStart.Immediate) {
-            enabled = false
+        if (repeat && startTiming != DMAStart.Immediate) {
+            latch.count = count
+            if (destAddrControl == AddrControl.Reload) {
+                latch.destination = destination.value
+            }
             return
         }
 
-        if (destAddrControl == AddrControl.Reload) {
-            latch.destination = destination.value
+        enabled = false
+    }
+
+    private inline fun getDestinationOffset(size: Int) =
+        when (destAddrControl) {
+            AddrControl.Decrement -> -size
+            AddrControl.Fixed -> 0
+            else -> size
         }
-        latch.count = count
-    }
 
-    inline fun getDestination(offset: Int) = when (destAddrControl) {
-        AddrControl.Increment -> latch.destination + offset
-        AddrControl.Decrement -> latch.destination - offset
-        AddrControl.Fixed -> latch.destination
-        AddrControl.Reload -> latch.destination + offset
-    }
-
-    inline fun getSource(offset: Int) = when (sourceAddrControl) {
-        AddrControl.Increment -> latch.source + offset
-        AddrControl.Decrement -> latch.source - offset
-        else -> latch.source
-    }
+    private inline fun getSourceOffset(size: Int) =
+        when (sourceAddrControl) {
+            AddrControl.Increment -> size
+            AddrControl.Decrement -> -size
+            else -> 0
+        }
 }
