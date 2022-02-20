@@ -2,10 +2,45 @@ package spAnGB.ppu
 
 import spAnGB.utils.*
 
+const val TransparentPriority = 4
+
+class SpritePixel(
+    var priority: Int = TransparentPriority,
+    var isMosaic: Boolean = false,
+    var isSemiTransparent: Boolean = false,
+    var color: Short = 0,
+
+    var isWindow: Boolean = false
+) {
+    fun clear() {
+        priority = TransparentPriority
+        isSemiTransparent = false
+        isMosaic = false
+        isWindow = false
+    }
+
+    inline fun apply(isWindow: Boolean, priority: Int, isMosaic: Boolean, isSemiTransparent: Boolean, color: Short) {
+        if (isWindow) {
+            this.isWindow = true
+        } else if (priority < this.priority) {
+            this.priority = priority
+            this.isMosaic = isMosaic
+            this.isSemiTransparent = isSemiTransparent
+            this.color = color
+        }
+    }
+
+    inline fun isTransparent() = priority == TransparentPriority
+}
+
+inline fun Array<SpritePixel>.clear() = forEach(SpritePixel::clear)
+
 fun PPU.renderSprites() {
+    spriteBuffer.clear()
+
     if (!displayControl.isObj) return
 
-    for (it in 127 downTo 0) {
+    for (it in 0 until 127) {
         SpriteData(sprites[it]).apply {
             if (shouldBeRendered()) render()
         }
@@ -76,8 +111,13 @@ value class SpriteData(val value: Long) { // TODO: rendering code deduplication
     inline val affineParameters: Int get() = value.ushr(25).and(0x1F).toInt()
 
     fun PPU.renderAffine() {
-        val buffer = if (mode == 2) lineBuffers[8] else lineBuffers[priority + 4]
+        val buffer = spriteBuffer
         val lyc = vcount.ly
+
+        val isMosaic = isMosaic
+        val isSemiTransparent = mode == 1
+        val isWindow = mode == 2
+        val priority = priority
 
         val (width, height) = spriteSizes[shape][size + 4 * isDoubleSize.toInt()]
         val (originalWidth, originalHeight) = spriteSizes[shape][size]
@@ -119,7 +159,13 @@ value class SpriteData(val value: Long) { // TODO: rendering code deduplication
 
                 val color = vram.byteBuffer[vramOffset].uInt
                 if (color != 0)
-                    buffer[currentPixel] = palette.shortBuffer[color + SpritePaletteOffset].toBufferColor()
+                    buffer[currentPixel].apply(
+                        isWindow,
+                        priority,
+                        isMosaic,
+                        isSemiTransparent,
+                        palette.shortBuffer[color + SpritePaletteOffset]
+                    )
             }
         } else {
             val paletteOffset = 16 * paletteNumber + SpritePaletteOffset
@@ -156,19 +202,31 @@ value class SpriteData(val value: Long) { // TODO: rendering code deduplication
                     }
                 }
                 if (color != 0)
-                    buffer[currentPixel] = palette.shortBuffer[color + paletteOffset].toBufferColor()
+                    buffer[currentPixel].apply(
+                        isWindow,
+                        priority,
+                        isMosaic,
+                        isSemiTransparent,
+                        palette.shortBuffer[color + paletteOffset]
+                    )
             }
         }
     }
 
     fun PPU.render() {
-        if (displayControl.bgMode in 3 .. 5 && tileNumber <= 511) return
+        if (displayControl.bgMode in 3..5 && tileNumber <= 511) return
         if (isTransform) {
             renderAffine()
             return
         }
-        val buffer = if (mode == 2) lineBuffers[8] else lineBuffers[priority + 4]
+
+        val buffer = spriteBuffer
         val lyc = vcount.ly
+
+        val isWindow = mode == 2
+        val isMosaic = isMosaic
+        val isSemiTransparent = mode == 1
+        val priority = priority
 
         val (width, height) = spriteSizes[shape][size]
         val x = x
@@ -202,7 +260,13 @@ value class SpriteData(val value: Long) { // TODO: rendering code deduplication
 
                 val color = vram.byteBuffer[vramOffset].uInt
                 if (color != 0)
-                    buffer[screenPixel] = palette.shortBuffer[color + SpritePaletteOffset].toBufferColor()
+                    buffer[screenPixel].apply(
+                        isWindow,
+                        priority,
+                        isMosaic,
+                        isSemiTransparent,
+                        palette.shortBuffer[color + SpritePaletteOffset]
+                    )
             }
         } else {
             val paletteOffset = 16 * paletteNumber + SpritePaletteOffset
@@ -238,7 +302,13 @@ value class SpriteData(val value: Long) { // TODO: rendering code deduplication
                     }
                 }
                 if (color != 0)
-                    buffer[screenPixel] = palette.shortBuffer[color + paletteOffset].toBufferColor()
+                    buffer[screenPixel].apply(
+                        isWindow,
+                        priority,
+                        isMosaic,
+                        isSemiTransparent,
+                        palette.shortBuffer[color + paletteOffset]
+                    )
             }
         }
     }

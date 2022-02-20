@@ -70,12 +70,10 @@ class PPU(
     val blend = BlendControl()
     val brightness = BlendBrightness()
 
-    // Bg - 0-3  Sprites - 4-7  Obj window - 8
-    val lineBuffers = Array(9) { IntArray(240) }  // TODO
+    // Bg - 0-3
+    val lineBuffers = Array(4) { IntArray(240) }  // TODO
+    val spriteBuffer = Array(240) { SpritePixel() }
     val finalBuffer = IntArray(240)
-
-    val joinedSprites = IntArray(240)
-    val spritePriorities = IntArray(240)
 
     val framebuffer = framebuffer.asIntBuffer()
     val sprites = attributes.byteBuffer.asLongBuffer()
@@ -108,7 +106,7 @@ class PPU(
             wx1.left <= x && x <= wx1.right
         ) return 1
 
-        if (displayControl.isWinObj && lineBuffers[8][x] != 0) return 3
+        if (displayControl.isWinObj && spriteBuffer[x].isWindow) return 3
 
         return 2
     }
@@ -146,18 +144,6 @@ class PPU(
         mixingIsEnabled[3][LUT_SPECIAL] = winOut.isObjWinSpecialEffects
     }
 
-    fun joinSprites() {  // FIXME: this is a quick fix for an issue that needs more code refactoring in future
-        for (pixel in 0 until 240) {
-            for (it in 4 until 8) {
-                if (lineBuffers[it][pixel] != 0) {
-                    joinedSprites[pixel] = lineBuffers[it][pixel]
-                    spritePriorities[pixel] = it - 4
-                    break
-                }
-            }
-        }
-    }
-
     fun shouldBlend(bg: Int, isBd: Boolean, isObj: Boolean): Boolean { // FIXME
         return (bg != -1 && blend isFirstBg bg) || (isBd && blend.firstBd) || (isObj && blend.firstObj)
     }
@@ -177,13 +163,13 @@ class PPU(
         } else this
 
     fun renderMixedBuffers() {
-        joinSprites()
-
         val sortedBackgrounds = bgControl
             .filter { displayControl isBg it.index }
             .sortedBy { it.priority }
             .toTypedArray()
-        val backdrop = palette.shortBuffer[0].toInt().brightnessBlend(shouldBlend(-1, true, false)).toColor()
+        val backdrop = palette.shortBuffer[0].toInt()
+            .brightnessBlend(shouldBlend(-1, true, false))
+            .toColor()
 
         if (displayControl.isWin0 || displayControl.isWin1 || displayControl.isWinObj) {
             fillWindowLut()
@@ -192,12 +178,11 @@ class PPU(
             }
         } else {
             for (pixel in 0 until 240) {
-
                 var color = 0
 
                 for (bg in sortedBackgrounds) {
-                    if (spritePriorities[pixel] <= bg.priority) {
-                        color = joinedSprites[pixel].brightnessBlend(shouldBlend(-1, false, true)).toColor()
+                    if (spriteBuffer[pixel].priority <= bg.priority) {
+                        color = spriteBuffer[pixel].color.uInt.brightnessBlend(shouldBlend(-1, false, true)).toColor()
                         break
                     }
                     if (lineBuffers[bg.index][pixel] != 0) {
@@ -224,8 +209,9 @@ class PPU(
         var value = 0
         for (bg in bgs) {
             if (isEnabled[bg.index] && lineBuffers[bg.index][pixel] != 0) {
-                value = if (isEnabled[LUT_OBJ] && spritePriorities[pixel] <= bg.priority) {
-                    joinedSprites[pixel].brightnessBlend(shouldBlend(-1, false, true) && isEnabled[LUT_SPECIAL])
+                value = if (isEnabled[LUT_OBJ] && spriteBuffer[pixel].priority <= bg.priority) {
+                    spriteBuffer[pixel].color.uInt
+                        .brightnessBlend(shouldBlend(-1, false, true) && isEnabled[LUT_SPECIAL])
                         .toColor()
                 } else {
                     lineBuffers[bg.index][pixel].brightnessBlend(
@@ -238,8 +224,9 @@ class PPU(
                 }
 
                 break
-            } else if (isEnabled[LUT_OBJ] && spritePriorities[pixel] <= bg.priority) {
-                value = joinedSprites[pixel].brightnessBlend(shouldBlend(-1, false, true) && isEnabled[LUT_SPECIAL])
+            } else if (isEnabled[LUT_OBJ] && spriteBuffer[pixel].priority <= bg.priority) {
+                value = spriteBuffer[pixel].color.uInt
+                    .brightnessBlend(shouldBlend(-1, false, true) && isEnabled[LUT_SPECIAL])
                     .toColor()
                 break
             }
@@ -356,8 +343,6 @@ class PPU(
     fun clearLineBuffers() {
         for (it in lineBuffers) it.fill(0)
         finalBuffer.fill(0)
-        joinedSprites.fill(0)
-        spritePriorities.fill(255)
     }
 
     fun checkVCounter() {
