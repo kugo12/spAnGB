@@ -58,9 +58,7 @@ class Timer(  // FIXME
         if (address bit 1) {  // Control
             control.toShort()
         } else {
-            currentCounter.toShort().also {
-                if (interrupt == Interrupt.Timer3) println(currentCounter.hex)
-            }
+            currentCounter.toShort()
         }
 
     override fun read32(address: Int): Int {

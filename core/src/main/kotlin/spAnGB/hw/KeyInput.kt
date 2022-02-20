@@ -7,6 +7,7 @@ import spAnGB.memory.mmio.Interrupt
 import spAnGB.memory.mmio.InterruptRequest
 import spAnGB.memory.mmio.SimpleMMIO
 import spAnGB.utils.bit
+import spAnGB.utils.read8From16
 import spAnGB.utils.uInt
 
 const val InputMask = 0x3FF
@@ -52,12 +53,8 @@ class KeyInput(
         irqControl.process()
     }
 
-    override fun read8(address: Int): Byte {
-        TODO("Not yet implemented")
-    }
-
+    override fun read8(address: Int): Byte = read8From16(address, value)
     override fun read16(address: Int): Short = value.toShort()
-
     override fun read32(address: Int): Int = value
 
     override fun write8(address: Int, value: Byte) {}

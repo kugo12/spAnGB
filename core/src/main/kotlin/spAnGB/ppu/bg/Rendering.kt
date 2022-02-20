@@ -42,3 +42,16 @@ fun PPU.renderBgMode4() {
         if (color != 0) buffer[it] = palette.shortBuffer[color].toBufferColor()
     }
 }
+
+fun PPU.renderBgMode5() {
+    val lyc = vcount.ly
+    if (lyc >= 128) return
+
+    val buffer = lineBuffers[2]
+    val offset = lyc * 160 +
+            displayControl.frameSelect * 0xA000
+
+    for (it in 0 until 160) {
+        buffer[it] = vram.shortBuffer[it + offset].uInt
+    }
+}

@@ -140,6 +140,7 @@ class MMIO(
             0x48, 0x49 -> bus.ppu.winIn
             0x4A, 0x4B -> bus.ppu.winOut
 
+            0x4C, 0x4D -> bus.ppu.mosaic
             0x50, 0x51 -> bus.ppu.blend
             0x52, 0x53 -> bus.ppu.alpha
             0x54, 0x55 -> bus.ppu.brightness

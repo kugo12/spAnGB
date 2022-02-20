@@ -65,6 +65,7 @@ class PPU(
     val winIn = WindowInsideControl()
     val winOut = WindowOutsideControl()
 
+    val mosaic = MosaicControl()
     val alpha = BlendAlpha()
     val blend = BlendControl()
     val brightness = BlendBrightness()
@@ -378,6 +379,7 @@ class PPU(
             2 -> renderBgMode2()
             3 -> renderBgMode3()
             4 -> renderBgMode4()
+            5 -> renderBgMode5()
             else -> TODO("Background mode ${displayControl.bgMode} not implemented")
         }
 

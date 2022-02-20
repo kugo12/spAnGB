@@ -50,10 +50,10 @@ val spriteSizes: Array<Array<IntArray>> = arrayOf(
 )
 
 @JvmInline
-value class SpriteData(val value: Long) {
-    init {
+value class SpriteData(val value: Long) { // TODO: rendering code deduplication
+//    init {
 //        if (value bit 12) TODO("Mosaic not supported rn")
-    }
+//    }
 
     inline val isDisabled: Boolean get() = value bit 9
 
@@ -93,42 +93,74 @@ value class SpriteData(val value: Long) {
         val pc = attributes.shortBuffer[paramOffset + 8].toLong()
         val pd = attributes.shortBuffer[paramOffset + 12].toLong()
 
-        assert(!is8Bit) { "8 bit mode not implemented rn" }
+        if (is8Bit) {
+            val tileRowSize =
+                if (displayControl.isOneDimensionalMapping) (originalWidth / 8) * Tile8BitSize
+                else TwoDimensionalTileRow * Tile8BitSize / 2
 
+            val n = if (displayControl.isOneDimensionalMapping) tileNumber else tileNumber and 1.inv()
+            val tileOffset = SpriteTileOffset + n * Tile4BitSize
 
-        val paletteOffset = 16 * paletteNumber + SpritePaletteOffset
-        val tileRowSize =
-            if (displayControl.isOneDimensionalMapping) (originalWidth / 8) * Tile4BitSize else TwoDimensionalTileRow * Tile4BitSize
-        val tileOffset = SpriteTileOffset + (tileNumber * Tile4BitSize)
+            val yInSprite = lyc - y - (height / 2)
 
-        val yInSprite = lyc - y - (height / 2)
+            val start = if (x > 0) x else 0
+            val end = if (start + width >= ScreenWidth) ScreenWidth else x + width
 
-        val start = if (x > 0) x else 0
-        val end = if (start + width >= ScreenWidth) ScreenWidth else x + width
+            val translationX = x + (width / 2)
+            for (currentPixel in start until end) {
+                val x1 = currentPixel - translationX
+                val cX = (x1 * pa + yInSprite * pb).ushr(8).toInt() + originalWidth / 2
+                val cY = (yInSprite * pd + x1 * pc).ushr(8).toInt() + originalHeight / 2
 
-        val translationX = x + (width / 2)
-        for (currentPixel in start until end) {
-            val x1 = currentPixel - translationX
-            val cX = (x1 * pa + yInSprite * pb).ushr(8).toInt() + originalWidth / 2
-            val cY = (yInSprite * pd + x1 * pc).ushr(8).toInt() + originalHeight / 2
+                if (cX < 0 || cY < 0 || cX >= originalWidth || cY >= originalHeight) continue
 
-            if (cX < 0 || cY < 0 || cX >= originalWidth || cY >= originalHeight) continue
+                val vramOffset = tileOffset +
+                        ((cY % 8) * Tile8BitRow) +
+                        ((cY / 8) * tileRowSize) +
+                        ((cX / Tile8BitRow) * Tile8BitSize) +
+                        (cX % Tile8BitRow)
 
-            val vramOffset = tileOffset +
-                    ((cY % 8) * Tile4BitRow) +
-                    ((cY / 8) * tileRowSize) +
-                    (((cX / 2) / Tile4BitRow) * Tile4BitSize) +
-                    ((cX / 2) % Tile4BitRow)
-
-            val color = vram.byteBuffer[vramOffset].toInt().let {
-                if (cX bit 0) {
-                    it.ushr(4).and(0xF)
-                } else {
-                    it and 0xF
-                }
+                val color = vram.byteBuffer[vramOffset].uInt
+                if (color != 0)
+                    buffer[currentPixel] = palette.shortBuffer[color + SpritePaletteOffset].toBufferColor()
             }
-            if (color != 0)
-                buffer[currentPixel] = palette.shortBuffer[color + paletteOffset].toBufferColor()
+        } else {
+            val paletteOffset = 16 * paletteNumber + SpritePaletteOffset
+            val tileRowSize =
+                if (displayControl.isOneDimensionalMapping) (originalWidth / 8) * Tile4BitSize
+                else TwoDimensionalTileRow * Tile4BitSize
+
+            val tileOffset = SpriteTileOffset + (tileNumber * Tile4BitSize)
+
+            val yInSprite = lyc - y - (height / 2)
+
+            val start = if (x > 0) x else 0
+            val end = if (start + width >= ScreenWidth) ScreenWidth else x + width
+
+            val translationX = x + (width / 2)
+            for (currentPixel in start until end) {
+                val x1 = currentPixel - translationX
+                val cX = (x1 * pa + yInSprite * pb).ushr(8).toInt() + originalWidth / 2
+                val cY = (yInSprite * pd + x1 * pc).ushr(8).toInt() + originalHeight / 2
+
+                if (cX < 0 || cY < 0 || cX >= originalWidth || cY >= originalHeight) continue
+
+                val vramOffset = tileOffset +
+                        ((cY % 8) * Tile4BitRow) +
+                        ((cY / 8) * tileRowSize) +
+                        (((cX / 2) / Tile4BitRow) * Tile4BitSize) +
+                        ((cX / 2) % Tile4BitRow)
+
+                val color = vram.byteBuffer[vramOffset].toInt().let {
+                    if (cX bit 0) {
+                        it.ushr(4).and(0xF)
+                    } else {
+                        it and 0xF
+                    }
+                }
+                if (color != 0)
+                    buffer[currentPixel] = palette.shortBuffer[color + paletteOffset].toBufferColor()
+            }
         }
     }
 
@@ -144,51 +176,71 @@ value class SpriteData(val value: Long) {
         val x = x
         val y = y
 
-        if (is8Bit) {
-            TODO("8 bit sprites not implemented rn")
-        } else {
-            val paletteOffset = 16 * paletteNumber + 0x100
-            val rowSize = 4
-            val tileSize = rowSize * 8
-            val tilesInRow = 32
+        if (is8Bit) {  // TODO: refactoring
             val tileRowSize =
-                if (displayControl.isOneDimensionalMapping) (width / 8) * tileSize else tilesInRow * tileSize
+                if (displayControl.isOneDimensionalMapping) (width / 8) * Tile8BitSize
+                else TwoDimensionalTileRow * Tile8BitSize / 2
 
             val yOffset = lyc - y
 
-            val aaaa = if (verticalFlip) {
-                (7 - yOffset % 8) * rowSize + ((height - yOffset - 1) / 8) * tileRowSize
+            val tileRow = if (verticalFlip) {
+                (7 - yOffset % 8) * Tile8BitRow + ((height - yOffset - 1) / 8) * tileRowSize
             } else {
-                yOffset % 8 * rowSize + yOffset / 8 * tileRowSize
+                yOffset % 8 * Tile8BitRow + yOffset / 8 * tileRowSize
             }
 
-            val tileRowOffset = 0x10000 + tileNumber * tileSize + aaaa
-            val screenPixelOffset = if (x > 0) x else 0
-            val pixelsLeft = if (x >= 240 - width) 240 - x else if (x < 0) width + x else width
-            val pixelsToSkipEnd = if (x >= 240 - width) ((240 - x + width) % 8) else 0
-            val pixelsToSkipStart = if (x < 0) -x else 0
+            val n = if (displayControl.isOneDimensionalMapping) tileNumber else tileNumber.and(1.inv())
+            val tileRowOffset = SpriteTileOffset + n * Tile4BitSize + tileRow
 
-            var currentPixel = 0
-            while (currentPixel < pixelsLeft) {
-                val vramOffset = if (horizontalFlip) {
-                    (pixelsLeft - currentPixel - 1 + pixelsToSkipStart).div(2).let {
-                        tileRowOffset + (it / rowSize) * tileSize
-                    }
-                } else {
-                    (currentPixel + pixelsToSkipStart).div(2).let {
-                        tileRowOffset + (it / rowSize) * tileSize
+            val start = if (x > 0) x else 0
+            val end = if (start + width >= ScreenWidth) ScreenWidth else x + width
+
+            for (screenPixel in start until end) {
+                val spriteX = if (horizontalFlip) width - (screenPixel - x + 1) else screenPixel - x
+
+                val vramOffset = tileRowOffset +
+                        ((spriteX / 8) * Tile8BitSize) +
+                        (spriteX % 8)
+
+                val color = vram.byteBuffer[vramOffset].uInt
+                if (color != 0)
+                    buffer[screenPixel] = palette.shortBuffer[color + SpritePaletteOffset].toBufferColor()
+            }
+        } else {
+            val paletteOffset = 16 * paletteNumber + SpritePaletteOffset
+            val tileRowSize =
+                if (displayControl.isOneDimensionalMapping) (width / 8) * Tile4BitSize
+                else TwoDimensionalTileRow * Tile4BitSize
+
+            val yOffset = lyc - y
+
+            val tileRow = if (verticalFlip) {
+                (7 - yOffset % 8) * Tile4BitRow + ((height - yOffset - 1) / 8) * tileRowSize
+            } else {
+                yOffset % 8 * Tile4BitRow + yOffset / 8 * tileRowSize
+            }
+
+            val tileRowOffset = SpriteTileOffset + tileNumber * Tile4BitSize + tileRow
+
+            val start = if (x > 0) x else 0
+            val end = if (start + width >= ScreenWidth) ScreenWidth else x + width
+
+            for (screenPixel in start until end) {
+                val spriteX = if (horizontalFlip) width - (screenPixel - x + 1) else screenPixel - x
+
+                val vramOffset = tileRowOffset +
+                        (((spriteX / 2) / Tile4BitRow) * Tile4BitSize) +
+                        ((spriteX / 2) % Tile4BitRow)
+
+                val color = vram.byteBuffer[vramOffset].toInt().let {
+                    if (spriteX bit 0) {
+                        it.ushr(4).and(0xF)
+                    } else {
+                        it and 0xF
                     }
                 }
-
-                currentPixel += blit4BitTileRow(
-                    buffer,
-                    vramOffset,
-                    currentPixel + screenPixelOffset,
-                    if (x + currentPixel + pixelsToSkipEnd >= 240) 7 - pixelsToSkipEnd else 0,
-                    paletteOffset,
-                    horizontalFlip,
-                    if (currentPixel == 0 && x < 0) 7 - (pixelsToSkipStart % 8) else 0
-                )
+                if (color != 0)
+                    buffer[screenPixel] = palette.shortBuffer[color + paletteOffset].toBufferColor()
             }
         }
     }

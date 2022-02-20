@@ -6,9 +6,7 @@ import spAnGB.memory.Memory
 import spAnGB.memory.mmio.Interrupt
 import spAnGB.memory.mmio.InterruptRequest
 import spAnGB.memory.mmio.SimpleMMIO
-import spAnGB.utils.bit
-import spAnGB.utils.uInt
-import spAnGB.utils.uShort
+import spAnGB.utils.*
 
 const val Serial2MHz = CLOCK_SPEED / 2_000_000
 const val Serial256KHz = CLOCK_SPEED / 256_000
@@ -87,14 +85,12 @@ class Serial(  // FIXME
         if (isIrqEnabled) ir[Interrupt.Serial] = true
     }
 
-    override fun read8(address: Int): Byte {
-        TODO("Not yet implemented")
-    }
+    override fun read8(address: Int): Byte = read8From16(address, control)
 
     override fun read16(address: Int): Short = control.toShort()
 
     override fun write8(address: Int, value: Byte) {
-        TODO("Not yet implemented")
+        control = write8to16(address, control, value)
     }
 
     override fun write16(address: Int, value: Short) {

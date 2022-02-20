@@ -18,6 +18,7 @@ import ktx.graphics.use
 import ktx.scene2d.Scene2DSkin
 import ktx.scene2d.vis.KVisWindow
 import ktx.scene2d.vis.multiSplitPane
+import spAnGB.cpu.CLOCK_SPEED
 import spAnGB.debugger.Debugger
 import java.nio.ByteBuffer
 
@@ -45,7 +46,7 @@ class FirstScreen : KtxScreen {
         clearScreen(0f, 0f, .25f)
         stage.draw()
         emulator.bus.mmio.keyInput.poll()
-        (0..300000).forEach { emulator.tick() }
+        (0..CLOCK_SPEED/60).forEach { emulator.tick() }
         stage.act()
     }
 

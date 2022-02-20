@@ -19,3 +19,11 @@ inline val Short.uInt get() = toInt() and 0xFFFF
 inline val Short.uLong get() = toLong() and 0xFFFF
 
 inline val Int.uLong get() = toLong() and 0xFFFFFFFF
+
+
+inline fun read8From16(address: Int, value: Int): Byte =
+    if (address bit 0) value.ushr(8).toByte() else value.toByte()
+
+inline fun write8to16(address: Int, current: Int, value: Byte): Int =
+    if (address bit 0) (current and 0xFF) or (value.uInt shl 8)
+    else (current and 0xFF00) or (value.uInt)

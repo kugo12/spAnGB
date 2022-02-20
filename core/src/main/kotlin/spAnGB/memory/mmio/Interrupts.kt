@@ -1,9 +1,7 @@
 package spAnGB.memory.mmio
 
 import spAnGB.memory.Memory
-import spAnGB.utils.bit
-import spAnGB.utils.hex
-import spAnGB.utils.toInt
+import spAnGB.utils.*
 import kotlin.experimental.inv
 
 class InterruptMasterEnable: Memory {
@@ -40,25 +38,23 @@ class InterruptEnable: SimpleMMIO() {
 class InterruptRequest: Memory {
     var value = 0
 
-    override fun read8(address: Int): Byte {
-        TODO("Not yet implemented")
-    }
-
+    override fun read8(address: Int): Byte = read8From16(address, value)
     override fun read16(address: Int): Short = value.toShort()
-
     override fun read32(address: Int): Int = value and 0xFFFF
 
     override fun write8(address: Int, value: Byte) {
-        TODO("Not yet implemented")
+        if (address bit 0) {
+            this.value = (this.value and 0xFF) or (this.value.and(0xFF00) and value.uInt.shl(8).inv())
+        } else {
+            this.value = (this.value and 0xFF00) or (this.value.and(0xFF) and value.uInt.inv())
+        }
     }
 
     override fun write16(address: Int, value: Short) {
-        this.value = this.value and value.toInt().inv()
+        this.value = this.value and value.uInt.inv()
     }
 
-    override fun write32(address: Int, value: Int) {
-        this.value = this.value and value.inv()
-    }
+    override fun write32(address: Int, value: Int) {}
 
     inline operator fun get(flag: Interrupt) = (value and flag.mask) != 0
     inline operator fun set(flag: Interrupt, value: Boolean) {
