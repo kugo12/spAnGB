@@ -49,9 +49,9 @@ fun PPU.renderBgMode5() {
 
     val buffer = lineBuffers[2]
     val offset = lyc * 160 +
-            displayControl.frameSelect * 0xA000
+            displayControl.frameSelect * 0xA000/2
 
     for (it in 0 until 160) {
-        buffer[it] = vram.shortBuffer[it + offset].uInt
+        buffer[it] = vram.shortBuffer[it + offset].toBufferColor()
     }
 }

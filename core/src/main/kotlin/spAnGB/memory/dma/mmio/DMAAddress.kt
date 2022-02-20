@@ -3,6 +3,7 @@ package spAnGB.memory.dma.mmio
 import spAnGB.memory.Memory
 import spAnGB.utils.bit
 import spAnGB.utils.uInt
+import spAnGB.utils.write8to32
 import kotlin.experimental.and
 
 class DMAAddress(
@@ -15,7 +16,7 @@ class DMAAddress(
     override fun read32(address: Int): Int = 0
 
     override fun write8(address: Int, value: Byte) {
-        TODO("Not yet implemented")
+        this.value = write8to32(address, this.value, value) and (mask.shl(16) or 0xFFFF)
     }
 
     override fun write16(address: Int, value: Short) {

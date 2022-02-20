@@ -151,8 +151,9 @@ val thumbTst = ThumbInstruction(
 val thumbNeg = ThumbInstruction(
     { "Neg" },
     simpleInstruction {
-        C = false
-        V = false
+        destination = 0
+        subOverflow()
+        dumbBorrow { 0L - operand.uLong }
         -operand
     }
 )
@@ -186,18 +187,20 @@ val thumbRor = ThumbInstruction(
 val thumbAdc = ThumbInstruction(
     { "Adc" },
     instruction {
-        perform { destination + operand + carry }
-        overflow() // todo
-        dumbCarry { destination.uLong + operand.uLong + carry.uLong }
+        operand += carry
+        perform { destination + operand }
+        overflow()
+        dumbCarry { destination.uLong + operand.uLong }
     }
 )
 
 val thumbSbc = ThumbInstruction(
     { "Sbc" },
     instruction {
-        perform { destination - operand - 1 + carry }
+        operand += 1 - carry
+        perform { destination - operand }
         subOverflow()
-        dumbBorrow { destination.uLong - operand.uLong - 1L + carry.uLong }
+        dumbBorrow { destination.uLong - operand.uLong }
     }
 )
 

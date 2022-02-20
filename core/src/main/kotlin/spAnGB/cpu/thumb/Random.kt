@@ -19,7 +19,6 @@ val thumbMovs = ThumbInstruction(   // TODO
             0 -> barrelShifterLogicalLeft(src, amount)
             1 -> barrelShifterLogicalRight(src, if (amount == 0) 32 else amount)
             2 -> barrelShifterArithmeticRight(src, if (amount == 0) 32 else amount)
-            3 -> src
             else -> throw IllegalStateException()
         }
 

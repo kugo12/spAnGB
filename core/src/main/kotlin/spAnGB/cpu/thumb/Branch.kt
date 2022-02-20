@@ -10,7 +10,7 @@ val thumbConditionalBranch = ThumbInstruction(
     { "conditional branch" },
     {
         if (checkCondition(instr.ushr(8).and(0xF))) {
-            val offset = instr.and(0xFF).toByte().toInt().shl(1)
+            val offset = instr.toByte().toInt().shl(1)
             pc += offset
             thumbRefill()
         }

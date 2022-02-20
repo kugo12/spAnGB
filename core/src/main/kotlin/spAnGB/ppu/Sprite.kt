@@ -51,10 +51,7 @@ val spriteSizes: Array<Array<IntArray>> = arrayOf(
 
 @JvmInline
 value class SpriteData(val value: Long) { // TODO: rendering code deduplication
-//    init {
-//        if (value bit 12) TODO("Mosaic not supported rn")
-//    }
-
+    inline val isMosaic get() = value bit 12
     inline val isDisabled: Boolean get() = value bit 9
 
     inline val isTransform: Boolean get() = value bit 8
@@ -165,6 +162,7 @@ value class SpriteData(val value: Long) { // TODO: rendering code deduplication
     }
 
     fun PPU.render() {
+        if (displayControl.bgMode in 3 .. 5 && tileNumber <= 511) return
         if (isTransform) {
             renderAffine()
             return

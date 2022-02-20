@@ -1,17 +1,13 @@
+@file:Suppress("NOTHING_TO_INLINE")
+
 package spAnGB.cpu.arm
 
 import spAnGB.cpu.ARMInstruction
-import spAnGB.cpu.CPU
 import spAnGB.cpu.CPUFlag
 import spAnGB.cpu.CPUMode
 import spAnGB.utils.hex
-import kotlin.math.absoluteValue
 
-private inline fun extendOffset(offset: Int): Int {
-    val unsigned = (offset and 0x7FFFFF) shl 2
-    val sign = ((offset and 0x800000) shl 8) shr 6
-    return unsigned or sign
-}
+private inline fun Int.extend() = this shl 8 shr 6
 
 val armBx = ARMInstruction(
     { "bx ${registers[it and 0xF].hex}" },
@@ -22,18 +18,18 @@ val armBx = ARMInstruction(
 )
 
 val armB = ARMInstruction(
-    { "b ${pc.hex} + ${extendOffset(it)} = ${(pc+extendOffset(it)).hex}" },
+    { "b ${pc.hex} + ${it.extend()} = ${(pc + it.extend()).hex}" },
     {
-        pc += extendOffset(instr)
+        pc += instr.extend()
         armRefill()
     }
 )
 
 val armBl = ARMInstruction(
-    { "bl ${pc.hex} + ${extendOffset(it)} = ${(pc+extendOffset(it)).hex}" },
+    { "bl ${pc.hex} + ${it.extend()} = ${(pc + it.extend()).hex}" },
     {
         lr = pc - 4
-        pc += extendOffset(instr)
+        pc += instr.extend()
         armRefill()
     }
 )

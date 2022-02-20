@@ -2,7 +2,6 @@ package spAnGB.cpu.thumb
 
 import spAnGB.cpu.CPU
 import spAnGB.cpu.ThumbInstruction
-import spAnGB.memory.AccessType
 import spAnGB.memory.AccessType.NonSequential
 import spAnGB.memory.AccessType.Sequential
 import spAnGB.utils.bit
@@ -231,6 +230,7 @@ val thumbStmia = ThumbInstruction(
         val address = registers[rb]
         var access = NonSequential
         val n = instr.and(0xFF).countOneBits()
+        val isBaseNotFirst = instr.and(1.shl(rb).minus(1)) != 0
 
         if (n == 0) {
             bus.write32(address, (pc + 2).and(2.inv()), access)
@@ -239,7 +239,7 @@ val thumbStmia = ThumbInstruction(
             for (it in 0..7) {
                 if (!(instr bit it)) continue
 
-                if (it == rb && instr.and(1.shl(rb).minus(1)) != 0) {
+                if (it == rb && isBaseNotFirst) {
                     bus.write32(address + update, address + n * 4, access)
                 } else {
                     bus.write32(address + update, registers[it], access)
@@ -268,11 +268,11 @@ val thumbLdmia = ThumbInstruction(
             update += 0x40
         } else {
             for (it in 0..7) {
-                if (instr bit it) {
-                    registers[it] = bus.read32(address + update, access)
-                    access = Sequential
-                    update += 4
-                }
+                if (!(instr bit it)) continue
+
+                registers[it] = bus.read32(address + update, access)
+                access = Sequential
+                update += 4
             }
         }
 

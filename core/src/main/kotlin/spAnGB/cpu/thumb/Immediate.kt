@@ -21,40 +21,43 @@ val thumbMovImm = ThumbInstruction(
 val thumbCmpImm = ThumbInstruction(
     { "CmpImm" },
     {
+        val imm = instr.immediate
         val rd = registers[instr.destination]
-        val result = rd - instr.immediate
+        val result = rd - imm
 
         this[CPUFlag.N] = result < 0
         this[CPUFlag.Z] = result == 0
-        this[CPUFlag.C] = !(rd >= 0 && rd < instr.immediate)
-        this[CPUFlag.V] = rd < 0 && result > 0
+        this[CPUFlag.C] = !((rd.uLong - imm.uLong) bit 32)
+        this[CPUFlag.V] = (rd xor imm) and (imm xor result).inv() < 0
     }
 )
 
 val thumbSubImm = ThumbInstruction(
     { "SubImm" },
     {
+        val imm = instr.immediate
         val rd = registers[instr.destination]
-        val result = rd - instr.immediate
+        val result = rd - imm
         registers[instr.destination] = result
 
         this[CPUFlag.N] = result < 0
         this[CPUFlag.Z] = result == 0
-        this[CPUFlag.C] = !(rd >= 0 && rd < instr.immediate)
-        this[CPUFlag.V] = rd < 0 && result > 0
+        this[CPUFlag.C] = !((rd.uLong - imm.uLong) bit 32)
+        this[CPUFlag.V] = (rd xor imm) and (imm xor result).inv() < 0
     }
 )
 
 val thumbAddImm = ThumbInstruction(
     { "AddImm" },
     {
+        val imm = instr.immediate
         val rd = registers[instr.destination]
-        val result = rd + instr.immediate
+        val result = rd + imm
         registers[instr.destination] = result
 
         this[CPUFlag.N] = result < 0
         this[CPUFlag.Z] = result == 0
-        this[CPUFlag.C] = (rd.uLong + instr.immediate.uLong) bit 32  // TODO: dumb carry
-        this[CPUFlag.V] = rd > 0 && result < 0
+        this[CPUFlag.C] = (rd.uLong + imm.uLong) bit 32  // TODO: dumb carry
+        this[CPUFlag.V] = (rd xor imm).inv() and (rd xor result) < 0
     }
 )

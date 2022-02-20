@@ -7,64 +7,40 @@ import spAnGB.cpu.CPUFlag
 import spAnGB.utils.bit
 import spAnGB.utils.toInt
 
-fun CPU.barrelShifterLogicalLeft(value: Int, amount: Int): Int =
-    if (amount > 31) {
-        shifterCarry = (amount == 32) && (value and 1 != 0)
-        0
-    } else if (amount == 0) {
-        shifterCarry = this[CPUFlag.C]
-        value
-    } else {
-        shifterCarry = value bit (32 - amount)
-        value shl amount
-    }
-
-fun CPU.barrelShifterLogicalRight(value: Int, amount: Int): Int =
-    if (amount > 31) {
-        shifterCarry = (amount == 32) && (value < 0)
-        0
-    } else if (amount == 0) {
-        shifterCarry = this[CPUFlag.C]
-        value
-    } else {
-        shifterCarry = value bit (amount - 1)
-        value ushr amount
-    }
-
-fun CPU.barrelShifterArithmeticRight(value: Int, amount: Int): Int =
-    if (amount > 31) {
-        shifterCarry = value < 0
-        value shr 31
-    } else if (amount == 0) {
-        shifterCarry = this[CPUFlag.C]
-        value
-    } else {
-        shifterCarry = value.bit(amount - 1)
-        value shr amount
-    }
-
-fun CPU.barrelShifterRotateRight(value: Int, amount: Int): Int =
-    if (amount == 0) {
-        shifterCarry = this[CPUFlag.C]
-        value
-    } else {
-        val tmp = value.rotateRight(amount)
-        shifterCarry = tmp < 0
-        tmp
-    }
-
-fun CPU.barrelShifterRotateRightExtended(value: Int): Int {
-    shifterCarry = value and 1 != 0
-
-    return (value ushr 1) or (this[CPUFlag.C].toInt().shl(31))
+fun CPU.barrelShifterLogicalLeft(value: Int, amount: Int): Int = when {
+    amount > 31 -> 0.also { shifterCarry = (amount == 32) && (value and 1 != 0) }
+    amount == 0 -> value.also { shifterCarry = this[CPUFlag.C] }
+    else -> value.shl(amount).also { shifterCarry = value bit (32 - amount) }
 }
 
+fun CPU.barrelShifterLogicalRight(value: Int, amount: Int): Int = when {
+    amount > 31 -> 0.also { shifterCarry = (amount == 32) && (value < 0) }
+    amount == 0 -> value.also { shifterCarry = this[CPUFlag.C] }
+    else -> value.ushr(amount).also { shifterCarry = value bit (amount - 1) }
+}
+
+fun CPU.barrelShifterArithmeticRight(value: Int, amount: Int): Int = when {
+    amount > 31 -> value.shr(31).also { shifterCarry = value < 0 }
+    amount == 0 -> value.also { shifterCarry = this[CPUFlag.C] }
+    else -> value.shr(amount).also { shifterCarry = value.bit(amount - 1) }
+}
+
+fun CPU.barrelShifterRotateRight(value: Int, amount: Int): Int = when (amount) {
+    0 -> value.also { shifterCarry = this[CPUFlag.C] }
+    else -> value.rotateRight(amount).also { shifterCarry = it < 0 }
+}
+
+fun CPU.barrelShifterRotateRightExtended(value: Int): Int =
+    (value ushr 1)
+        .or(this[CPUFlag.C].toInt() shl 31)
+        .also { shifterCarry = value and 1 != 0 }
+
 fun CPU.operand(operand: Int, value: Int): Int {
-    var shiftType = (operand ushr 1) and 0x3
+    var shiftType = operand ushr 1 and 0x3
     val amount = when (operand bit 0) {
-        true -> registers[(operand ushr 4) and 0xF] and 0xFF
+        true -> registers[operand ushr 4 and 0xF] and 0xFF
         false -> {
-            var imm = (operand ushr 3) and 0x1F
+            var imm = operand ushr 3 and 0x1F
 
             if (imm == 0) {
                 when (shiftType) {

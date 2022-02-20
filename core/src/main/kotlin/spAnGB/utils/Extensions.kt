@@ -27,3 +27,12 @@ inline fun read8From16(address: Int, value: Int): Byte =
 inline fun write8to16(address: Int, current: Int, value: Byte): Int =
     if (address bit 0) (current and 0xFF) or (value.uInt shl 8)
     else (current and 0xFF00) or (value.uInt)
+
+inline fun write8to32(address: Int, current: Int, value: Byte): Int =
+    when (address and 3) {
+        0 -> (current and 0xFF.inv()) or value.uInt
+        1 -> (current and 0xFF00.inv()) or (value.uInt.shl(8))
+        2 -> (current and 0xFF0000.inv()) or (value.uInt.shl(16))
+        3 -> (current and 0xFFFFFF) or (value.uInt.shl(24))
+        else -> current
+    }

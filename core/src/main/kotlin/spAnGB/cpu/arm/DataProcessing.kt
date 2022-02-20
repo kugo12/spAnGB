@@ -25,9 +25,12 @@ class DataProcessingDsl {
     @JvmField
     var result: Int = 0
 
+    var affectFlags = false
+
     fun initialize(cpu: CPU) {
         this.cpu = cpu
-        this.instruction = cpu.instr
+        instruction = cpu.instr
+        affectFlags = instruction bit 20
 
         destinationRegister = (instruction ushr 12) and 0xF
         secondOperand = when {
@@ -58,6 +61,7 @@ class DataProcessingDsl {
     }
 
     inline fun performWithoutDestination(func: DataProcessingDsl.() -> Int) {
+        affectFlags = true
         result = func()
         if (destinationRegister == 15) {
             println("[ARM] performWithoutDestination: destination == 15")
@@ -69,7 +73,7 @@ class DataProcessingDsl {
     }
 
     inline fun setFlags(func: DataProcessingDsl.() -> Unit) {
-        if (instruction bit 20) {
+        if (affectFlags) {
             N = result < 0
             Z = result == 0
             func()
@@ -77,7 +81,7 @@ class DataProcessingDsl {
     }
 
     inline fun setFlagsWithShifterCarry(func: DataProcessingDsl.() -> Unit = {}) {
-        if (instruction bit 20) {
+        if (affectFlags) {
             N = result < 0
             Z = result == 0
             C = cpu.shifterCarry
@@ -258,10 +262,12 @@ val armAdd = ARMInstruction(
 val armAdc = ARMInstruction(
     { "Adc" },
     instruction {
-        perform { firstOperand + secondOperand + carry }
+        secondOperand += carry
+
+        perform { firstOperand + secondOperand }
         setFlags {
             overflow()
-            dumbCarry { firstOperand.uLong + secondOperand.uLong + carry.uLong }
+            dumbCarry { firstOperand.uLong + secondOperand.uLong }
         }
     }
 )
@@ -269,10 +275,12 @@ val armAdc = ARMInstruction(
 val armSbc = ARMInstruction(
     { "Sbc" },
     instruction {
-        perform { firstOperand - secondOperand - 1 + carry }
+        secondOperand += 1 - carry
+
+        perform { firstOperand - secondOperand }
         setFlags {
             subOverflow()
-            dumbBorrow { firstOperand.uLong - secondOperand.uLong - 1L + carry.uLong }
+            dumbBorrow { firstOperand.uLong - secondOperand.uLong }
         }
     }
 )
@@ -280,10 +288,12 @@ val armSbc = ARMInstruction(
 val armRsc = ARMInstruction(
     { "Rsc" },
     instruction {
-        perform { secondOperand - firstOperand - 1 + carry }
+        firstOperand += 1 - carry
+
+        perform { secondOperand - firstOperand }
         setFlags {
             subOverflow(op1 = secondOperand, op2 = firstOperand)
-            dumbBorrow { secondOperand.uLong - firstOperand.uLong - 1L + carry.uLong }
+            dumbBorrow { secondOperand.uLong - firstOperand.uLong }
         }
     }
 )
