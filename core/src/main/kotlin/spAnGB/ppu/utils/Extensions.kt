@@ -23,3 +23,8 @@ inline fun Int.transformColors(transformation: (Int) -> Int): Int =
     transformation(and(0x1F))
         .or(transformation(ushr(5).and(0x1F)).shl(5))
         .or(transformation(ushr(10).and(0x1F)).shl(10))
+
+inline fun transformColors(firstTarget: Int, secondTarget: Int, transformation: (Int, Int) -> Int) =
+    transformation(firstTarget and 0x1F, secondTarget and 0x1F)
+        .or(transformation(firstTarget ushr 5 and 0x1F, secondTarget ushr 5 and 0x1F).shl(5))
+        .or(transformation(firstTarget ushr 10 and 0x1F, secondTarget ushr 5 and 0x1F).shl(10))

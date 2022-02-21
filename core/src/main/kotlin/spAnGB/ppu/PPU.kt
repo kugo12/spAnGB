@@ -36,6 +36,11 @@ const val TOTAL_HEIGHT = VBLANK_HEIGHT + VDRAW_HEIGHT
 private const val LUT_OBJ = 4
 private const val LUT_SPECIAL = 5
 
+object PixelType {
+    const val Sprite = 4
+    const val Backdrop = 5
+}
+
 class PPU(
     framebuffer: ByteBuffer,
     val blitFramebuffer: () -> Unit,
@@ -143,32 +148,34 @@ class PPU(
         mixingIsEnabled[3][LUT_SPECIAL] = winOut.isObjWinSpecialEffects
     }
 
-    fun shouldBlend(bg: Int, isBd: Boolean, isObj: Boolean): Boolean { // FIXME
-        return (bg != -1 && blend isFirstBg bg) || (isBd && blend.firstBd) || (isObj && blend.firstObj)
+    fun getBackdropColor() = palette.shortBuffer[0].toInt().let {
+        when {
+            blend.firstBd && blend.mode > 1 -> brightnessBlend(it)
+            else -> it
+        }
     }
 
-    fun Int.brightnessBlend(shouldBlend: Boolean) = // TODO: alpha blending needs more refactoring
-        if ((blend.mode == 2 || blend.mode == 3) && shouldBlend) {
-            val coefficient = brightness.coefficient
-            when (blend.mode) {
-                2 -> {
-                    transformColors { it + ((31 - it) * coefficient).ushr(4) }
-                }
-                3 -> {
-                    transformColors { it - (it * coefficient).ushr(4) }
-                }
-                else -> -1
-            }
-        } else this
+    fun alphaBlend(first: Int, second: Int) = transformColors(first, second) { a, b ->
+        (a * alpha.firstCoefficient + b * alpha.secondCoefficient).ushr(4)
+            .coerceAtMost(31)
+    }
 
-    fun renderMixedBuffers() {
+    fun brightnessBlend(first: Int): Int {
+        val coefficient = brightness.coefficient
+
+        return when (blend.mode) {
+            2 -> first.transformColors { it + ((31 - it) * coefficient).ushr(4) }
+            3 -> first.transformColors { it - (it * coefficient).ushr(4) }
+            else -> -1
+        }
+    }
+
+    fun renderMixedBuffers() {  // TODO: refactoring
         val sortedBackgrounds = bgControl
             .filter { displayControl isBg it.index }
             .sortedBy { it.priority }
             .toTypedArray()
-        val backdrop = palette.shortBuffer[0].toInt()
-            .brightnessBlend(shouldBlend(-1, true, false))
-            .toColor()
+        val backdrop = getBackdropColor()
 
         processSpriteMosaic()
         processBackgroundMosaic()
@@ -180,71 +187,120 @@ class PPU(
             }
         } else {
             for (pixel in 0 until 240) {
-                var color = 0
+                var bottomColor = backdrop
+                var topColor = backdrop
+                var bottomPriority = TransparentPriority
+                var topPriority = TransparentPriority
+                var topIndex = PixelType.Backdrop
+                var bottomIndex = PixelType.Backdrop
 
-                for (bg in sortedBackgrounds) {
-                    if (spriteBuffer[pixel].priority <= bg.priority) {
-                        color = spriteBuffer[pixel].color.uInt.brightnessBlend(shouldBlend(-1, false, true)).toColor()
-                        break
-                    }
-                    if (lineBuffers[bg.index][pixel] != 0) {
-                        color =
-                            lineBuffers[bg.index][pixel].brightnessBlend(shouldBlend(bg.index, false, false)).toColor()
-                        break
+                for (it in sortedBackgrounds) {
+                    if (lineBuffers[it.index][pixel] != 0) {
+                        if (it.priority < topPriority) {
+                            topPriority = it.priority
+                            topIndex = it.index
+                            topColor = lineBuffers[it.index][pixel]
+                        } else {
+                            bottomPriority = it.priority
+                            bottomIndex = it.index
+                            bottomColor = lineBuffers[it.index][pixel]
+
+                            break
+                        }
                     }
                 }
 
-                if (color == 0) {
-                    color = backdrop
+                val spritePixel = spriteBuffer[pixel]
+                if (spritePixel.priority != TransparentPriority) {
+                    if (spritePixel.priority <= topPriority) {
+                        bottomIndex = topIndex
+                        bottomColor = topColor
+                        topIndex = PixelType.Sprite
+                        topColor = spritePixel.color.toInt()
+                    } else if (spritePixel.priority <= bottomPriority) {
+                        bottomIndex = PixelType.Sprite
+                        bottomColor = spritePixel.color.toInt()
+                    }
                 }
 
-                finalBuffer[pixel] = color
+
+                finalBuffer[pixel] = if (
+                    (blend isFirst topIndex && blend isSecond bottomIndex && blend.mode == 1) ||
+                    (topIndex == PixelType.Sprite && spritePixel.isSemiTransparent && blend isSecond bottomIndex)
+                ) {
+                    alphaBlend(topColor, bottomColor).toColor()
+                } else if (blend.mode > 1 && blend isFirst topIndex) {
+                    brightnessBlend(topColor).toColor()
+                } else if (topColor == 0) {
+                    backdrop.toColor()
+                } else {
+                    topColor.toColor()
+                }
             }
         }
 
         framebuffer.put(vcount.ly * 240, finalBuffer, 0, 240)
     }
 
+
     fun mixBuffers(bgs: Array<BackgroundControl>, backdrop: Int, pixel: Int) {
         val isEnabled = mixingIsEnabled[getCurrentWindow(pixel)]
 
-        var value = 0
-        for (bg in bgs) {
-            if (isEnabled[bg.index] && lineBuffers[bg.index][pixel] != 0) {
-                value = if (isEnabled[LUT_OBJ] && spriteBuffer[pixel].priority <= bg.priority) {
-                    spriteBuffer[pixel].color.uInt
-                        .brightnessBlend(shouldBlend(-1, false, true) && isEnabled[LUT_SPECIAL])
-                        .toColor()
-                } else {
-                    lineBuffers[bg.index][pixel].brightnessBlend(
-                        shouldBlend(
-                            bg.index,
-                            false,
-                            false
-                        ) && isEnabled[LUT_SPECIAL]
-                    ).toColor()
-                }
+        var bottomColor = backdrop
+        var topColor = backdrop
+        var bottomPriority = TransparentPriority
+        var topPriority = TransparentPriority
+        var topIndex = PixelType.Backdrop
+        var bottomIndex = PixelType.Backdrop
 
-                break
-            } else if (isEnabled[LUT_OBJ] && spriteBuffer[pixel].priority <= bg.priority) {
-                value = spriteBuffer[pixel].color.uInt
-                    .brightnessBlend(shouldBlend(-1, false, true) && isEnabled[LUT_SPECIAL])
-                    .toColor()
-                break
+        for (it in bgs) {
+            if (isEnabled[it.index] && lineBuffers[it.index][pixel] != 0) {
+                if (it.priority < topPriority) {
+                    topPriority = it.priority
+                    topIndex = it.index
+                    topColor = lineBuffers[it.index][pixel]
+                } else {
+                    bottomPriority = it.priority
+                    bottomIndex = it.index
+                    bottomColor = lineBuffers[it.index][pixel]
+
+                    break
+                }
             }
         }
 
-        if (value == 0) {
-            value = backdrop
+        val spritePixel = spriteBuffer[pixel]
+        if (isEnabled[LUT_OBJ] && spritePixel.priority != TransparentPriority) {
+            if (spritePixel.priority <= topPriority) {
+                bottomIndex = topIndex
+                bottomColor = topColor
+                topIndex = PixelType.Sprite
+                topColor = spritePixel.color.toInt()
+            } else if (spritePixel.priority <= bottomPriority) {
+                bottomIndex = PixelType.Sprite
+                bottomColor = spritePixel.color.toInt()
+            }
         }
 
-        finalBuffer[pixel] = value
+        finalBuffer[pixel] = if (
+            isEnabled[LUT_SPECIAL] &&
+            ((blend isFirst topIndex && blend isSecond bottomIndex && blend.mode == 1) ||
+                    (topIndex == PixelType.Sprite && spritePixel.isSemiTransparent && blend isSecond bottomIndex))
+        ) {
+            alphaBlend(topColor, bottomColor).toColor()
+        } else if (isEnabled[LUT_SPECIAL] && blend.mode > 1 && blend isFirst topIndex) {
+            brightnessBlend(topColor).toColor()
+        } else if (topColor == 0) {
+            backdrop.toColor()
+        } else {
+            topColor.toColor()
+        }
     }
 
     fun processBackgroundMosaic() {  // TODO
         if (mosaic.backgroundHorizontal == 0) return
 
-        for (it in 0.. 3) {
+        for (it in 0..3) {
             if (bgControl[it].isMosaic) {
                 val buffer = lineBuffers[it]
 

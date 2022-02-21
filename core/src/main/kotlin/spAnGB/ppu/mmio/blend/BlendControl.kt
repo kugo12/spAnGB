@@ -20,6 +20,6 @@ class BlendControl: SimpleMMIO(mask = 0x3FFF) {
     inline val secondObj get() = value bit 12
     inline val secondBd get() = value bit 13
 
-    inline infix fun isFirstBg(index: Int) = value bit index
-    inline infix fun isSecondBg(index: Int) = value bit (index + 8)
+    inline infix fun isFirst(index: Int) = value bit index
+    inline infix fun isSecond(index: Int) = value bit (index + 8)
 }
