@@ -28,7 +28,7 @@ fun PPU.renderBgText(n: Int) {  // TODO: refactoring
 
     val tileMapOffset = control.characterBaseBlock * 16 * KiB
     val mapOffset = control.screenBaseBlock * 1 * KiB
-    val bgYOffset = bgYOffset[n].offset
+    val bgYOffset = bgYOffset[n].offset - if (control.isMosaic) mosaic.bgY else 0
     val bgXOffset = bgXOffset[n].offset
 
     var currentPixel = 0

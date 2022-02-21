@@ -19,7 +19,6 @@ import spAnGB.ppu.mmio.blend.BlendControl
 import spAnGB.ppu.mmio.win.WindowDimension
 import spAnGB.ppu.mmio.win.WindowInsideControl
 import spAnGB.ppu.mmio.win.WindowOutsideControl
-import spAnGB.utils.KiB
 import spAnGB.utils.bit
 import spAnGB.utils.uInt
 import java.nio.ByteBuffer
@@ -171,6 +170,9 @@ class PPU(
             .brightnessBlend(shouldBlend(-1, true, false))
             .toColor()
 
+        processSpriteMosaic()
+        processBackgroundMosaic()
+
         if (displayControl.isWin0 || displayControl.isWin1 || displayControl.isWinObj) {
             fillWindowLut()
             for (pixel in 0 until 240) {
@@ -237,6 +239,43 @@ class PPU(
         }
 
         finalBuffer[pixel] = value
+    }
+
+    fun processBackgroundMosaic() {  // TODO
+        if (mosaic.backgroundHorizontal == 0) return
+
+        for (it in 0.. 3) {
+            if (bgControl[it].isMosaic) {
+                val buffer = lineBuffers[it]
+
+                for (pixel in 0 until 240) {
+                    if (mosaic.bgX != 0) {
+                        buffer[pixel] = buffer[pixel - 1]
+                    }
+                    mosaic.advanceBgX()
+                }
+                mosaic.bgX = 0
+            }
+        }
+    }
+
+    fun processSpriteMosaic() {
+        if (mosaic.objectHorizontal == 0) return
+
+        for (it in 0 until 240) {
+            val pixel = spriteBuffer[it]
+            if (pixel.isMosaic) {
+                if (mosaic.objX != 0) {
+                    val previous = spriteBuffer[it - 1]
+                    pixel.color = previous.color
+                    pixel.priority = previous.priority
+                }
+
+                mosaic.advanceObjX()
+            } else {
+                mosaic.objX = 0
+            }
+        }
     }
 
     fun blit8BitTileRow(
@@ -370,6 +409,7 @@ class PPU(
 
         renderSprites()
         renderMixedBuffers()
+        mosaic.advanceCounters()
 
         scheduler.schedule(2, dmaManager.hblankTask)
         scheduler.schedule(HBLANK_CYCLES, hblankRef, taskIndex)
@@ -430,6 +470,7 @@ class PPU(
             if (vcount.ly == 227) {
                 displayStat[DisplayStatFlag.VBLANK] = false
             }
+            mosaic.resetCounters()
             scheduler.schedule(HDRAW_CYCLES, vblankRef, taskIndex)
         }
 

@@ -19,8 +19,17 @@ class SpritePixel(
         isWindow = false
     }
 
-    inline fun apply(isWindow: Boolean, priority: Int, isMosaic: Boolean, isSemiTransparent: Boolean, color: Short) {
-        if (isWindow) {
+    inline fun apply(
+        isTransparent: Boolean,
+        isWindow: Boolean,
+        priority: Int,
+        isMosaic: Boolean,
+        isSemiTransparent: Boolean,
+        color: Short
+    ) {
+        if (isTransparent) {
+            this.isMosaic = isMosaic
+        } else if (isWindow) {
             this.isWindow = true
         } else if (priority < this.priority) {
             this.priority = priority
@@ -138,7 +147,7 @@ value class SpriteData(val value: Long) { // TODO: rendering code deduplication
             val n = if (displayControl.isOneDimensionalMapping) tileNumber else tileNumber and 1.inv()
             val tileOffset = SpriteTileOffset + n * Tile4BitSize
 
-            val yInSprite = lyc - y - (height / 2)
+            val yInSprite = lyc - y - (height / 2) - if (isMosaic) mosaic.objY else 0
 
             val start = if (x > 0) x else 0
             val end = if (start + width >= ScreenWidth) ScreenWidth else x + width
@@ -158,14 +167,15 @@ value class SpriteData(val value: Long) { // TODO: rendering code deduplication
                         (cX % Tile8BitRow)
 
                 val color = vram.byteBuffer[vramOffset].uInt
-                if (color != 0)
-                    buffer[currentPixel].apply(
-                        isWindow,
-                        priority,
-                        isMosaic,
-                        isSemiTransparent,
-                        palette.shortBuffer[color + SpritePaletteOffset]
-                    )
+
+                buffer[currentPixel].apply(
+                    color == 0,
+                    isWindow,
+                    priority,
+                    isMosaic,
+                    isSemiTransparent,
+                    palette.shortBuffer[color + SpritePaletteOffset]
+                )
             }
         } else {
             val paletteOffset = 16 * paletteNumber + SpritePaletteOffset
@@ -175,7 +185,7 @@ value class SpriteData(val value: Long) { // TODO: rendering code deduplication
 
             val tileOffset = SpriteTileOffset + (tileNumber * Tile4BitSize)
 
-            val yInSprite = lyc - y - (height / 2)
+            val yInSprite = lyc - y - (height / 2) - if (isMosaic) mosaic.objY else 0
 
             val start = if (x > 0) x else 0
             val end = if (start + width >= ScreenWidth) ScreenWidth else x + width
@@ -201,14 +211,15 @@ value class SpriteData(val value: Long) { // TODO: rendering code deduplication
                         it and 0xF
                     }
                 }
-                if (color != 0)
-                    buffer[currentPixel].apply(
-                        isWindow,
-                        priority,
-                        isMosaic,
-                        isSemiTransparent,
-                        palette.shortBuffer[color + paletteOffset]
-                    )
+
+                buffer[currentPixel].apply(
+                    color == 0,
+                    isWindow,
+                    priority,
+                    isMosaic,
+                    isSemiTransparent,
+                    palette.shortBuffer[color + paletteOffset]
+                )
             }
         }
     }
@@ -237,7 +248,7 @@ value class SpriteData(val value: Long) { // TODO: rendering code deduplication
                 if (displayControl.isOneDimensionalMapping) (width / 8) * Tile8BitSize
                 else TwoDimensionalTileRow * Tile8BitSize / 2
 
-            val yOffset = lyc - y
+            val yOffset = lyc - y - if (isMosaic) mosaic.objY else 0
 
             val tileRow = if (verticalFlip) {
                 (7 - yOffset % 8) * Tile8BitRow + ((height - yOffset - 1) / 8) * tileRowSize
@@ -259,14 +270,15 @@ value class SpriteData(val value: Long) { // TODO: rendering code deduplication
                         (spriteX % 8)
 
                 val color = vram.byteBuffer[vramOffset].uInt
-                if (color != 0)
-                    buffer[screenPixel].apply(
-                        isWindow,
-                        priority,
-                        isMosaic,
-                        isSemiTransparent,
-                        palette.shortBuffer[color + SpritePaletteOffset]
-                    )
+
+                buffer[screenPixel].apply(
+                    color == 0,
+                    isWindow,
+                    priority,
+                    isMosaic,
+                    isSemiTransparent,
+                    palette.shortBuffer[color + SpritePaletteOffset]
+                )
             }
         } else {
             val paletteOffset = 16 * paletteNumber + SpritePaletteOffset
@@ -274,7 +286,7 @@ value class SpriteData(val value: Long) { // TODO: rendering code deduplication
                 if (displayControl.isOneDimensionalMapping) (width / 8) * Tile4BitSize
                 else TwoDimensionalTileRow * Tile4BitSize
 
-            val yOffset = lyc - y
+            val yOffset = lyc - y - if (isMosaic) mosaic.objY else 0
 
             val tileRow = if (verticalFlip) {
                 (7 - yOffset % 8) * Tile4BitRow + ((height - yOffset - 1) / 8) * tileRowSize
@@ -301,14 +313,15 @@ value class SpriteData(val value: Long) { // TODO: rendering code deduplication
                         it and 0xF
                     }
                 }
-                if (color != 0)
-                    buffer[screenPixel].apply(
-                        isWindow,
-                        priority,
-                        isMosaic,
-                        isSemiTransparent,
-                        palette.shortBuffer[color + paletteOffset]
-                    )
+
+                buffer[screenPixel].apply(
+                    color == 0,
+                    isWindow,
+                    priority,
+                    isMosaic,
+                    isSemiTransparent,
+                    palette.shortBuffer[color + paletteOffset]
+                )
             }
         }
     }

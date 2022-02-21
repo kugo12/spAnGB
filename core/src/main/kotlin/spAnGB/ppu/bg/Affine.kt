@@ -30,10 +30,11 @@ fun PPU.renderBgAffine(n: Int) {
 
     val tilesInRow = width / 8
     val lyc = vcount.ly
+    val mosaicOffset = if (control.isMosaic) mosaic.bgY else 0
 
     for (currentPixel in 0 until 240) {
         var localX = currentPixel + xRef ushr 8
-        var localY = lyc + yRef ushr 8
+        var localY = lyc + yRef ushr 8 - mosaicOffset
         xRef += pa
         yRef += pc
 
