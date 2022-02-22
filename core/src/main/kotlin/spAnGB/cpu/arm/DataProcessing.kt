@@ -74,16 +74,14 @@ class DataProcessingDsl {
 
     inline fun setFlags(func: DataProcessingDsl.() -> Unit) {
         if (affectFlags) {
-            N = result < 0
-            Z = result == 0
+            cpu.negativeAndZero(result)
             func()
         }
     }
 
     inline fun setFlagsWithShifterCarry(func: DataProcessingDsl.() -> Unit = {}) {
         if (affectFlags) {
-            N = result < 0
-            Z = result == 0
+            cpu.negativeAndZero(result)
             C = cpu.shifterCarry
             func()
         }
@@ -104,11 +102,11 @@ class DataProcessingDsl {
     }
 
     inline fun overflow(op2: Int = secondOperand) {
-        V = (firstOperand xor op2).inv() and (firstOperand xor result) < 0
+        cpu.overflow(result, firstOperand, op2)
     }
 
     inline fun subOverflow(op1: Int = firstOperand, op2: Int = secondOperand) {
-        V = (op1 xor op2) and (op2 xor result).inv() < 0
+        cpu.subOverflow(result, op1, op2)
     }
 
     inline fun dumbCarry(func: DataProcessingDsl.() -> Long) {  // TODO
@@ -262,12 +260,10 @@ val armAdd = ARMInstruction(
 val armAdc = ARMInstruction(
     { "Adc" },
     instruction {
-        secondOperand += carry
-
-        perform { firstOperand + secondOperand }
+        perform { firstOperand + secondOperand + carry }
         setFlags {
             overflow()
-            dumbCarry { firstOperand.uLong + secondOperand.uLong }
+            dumbCarry { firstOperand.uLong + secondOperand.uLong + carry.uLong }
         }
     }
 )
@@ -275,12 +271,10 @@ val armAdc = ARMInstruction(
 val armSbc = ARMInstruction(
     { "Sbc" },
     instruction {
-        secondOperand += 1 - carry
-
-        perform { firstOperand - secondOperand }
+        perform { firstOperand - secondOperand - 1 + carry }
         setFlags {
             subOverflow()
-            dumbBorrow { firstOperand.uLong - secondOperand.uLong }
+            dumbBorrow { firstOperand.uLong - secondOperand.uLong - 1L + carry.uLong }
         }
     }
 )
@@ -288,12 +282,10 @@ val armSbc = ARMInstruction(
 val armRsc = ARMInstruction(
     { "Rsc" },
     instruction {
-        firstOperand += 1 - carry
-
-        perform { secondOperand - firstOperand }
+        perform { secondOperand - firstOperand - 1 + carry}
         setFlags {
             subOverflow(op1 = secondOperand, op2 = firstOperand)
-            dumbBorrow { secondOperand.uLong - firstOperand.uLong }
+            dumbBorrow { secondOperand.uLong - firstOperand.uLong - 1L + carry }
         }
     }
 )

@@ -59,7 +59,7 @@ val armUmullUmlal = ARMInstruction(
 
         if (instr bit 20) {
             this[CPUFlag.Z] = result == 0L
-            this[CPUFlag.N] = result bit 63
+            this[CPUFlag.N] = result < 0L
         }
     }
 )

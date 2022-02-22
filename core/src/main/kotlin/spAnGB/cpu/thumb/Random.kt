@@ -1,8 +1,6 @@
 package spAnGB.cpu.thumb
 
-import spAnGB.cpu.CPUFlag
-import spAnGB.cpu.CPUInstruction
-import spAnGB.cpu.ThumbInstruction
+import spAnGB.cpu.*
 import spAnGB.cpu.arm.barrelShifterArithmeticRight
 import spAnGB.cpu.arm.barrelShifterLogicalLeft
 import spAnGB.cpu.arm.barrelShifterLogicalRight
@@ -24,8 +22,7 @@ val thumbMovs = ThumbInstruction(   // TODO
 
         registers[instr and 0x7] = value
         this[CPUFlag.C] = shifterCarry
-        this[CPUFlag.Z] = value == 0
-        this[CPUFlag.N] = value < 0
+        negativeAndZero(value)
     }
 )
 
@@ -40,18 +37,19 @@ val thumbAddSub = ThumbInstruction(
 
         val src = registers[(instr ushr 3) and 0x7]
 
-        val value = if (instr bit 9) {
-            this[CPUFlag.V] = (src xor rn) and (rn xor (src - rn)).inv() < 0
-            this[CPUFlag.C] = !((src.uLong - rn.uLong) bit 32)
-            src - rn
+        val result = if (instr bit 9) {
+            (src - rn).also {
+                subOverflow(it, src, rn)
+                dumbBorrow(src.uLong - rn.uLong)
+            }
         } else {
-            this[CPUFlag.V] = (src xor rn).inv() and (rn xor (src + rn)) < 0
-            this[CPUFlag.C] = (src.uLong + rn.uLong) bit 32
-            src + rn
+            (src + rn).also {
+                overflow(it, src, rn)
+                dumbCarry(src.uLong + rn.uLong)
+            }
         }
-        registers[instr and 0x7] = value
+        registers[instr and 0x7] = result
 
-        this[CPUFlag.N] = value < 0
-        this[CPUFlag.Z] = value == 0
+        negativeAndZero(result)
     }
 )

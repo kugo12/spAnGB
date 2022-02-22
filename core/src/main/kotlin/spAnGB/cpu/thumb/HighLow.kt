@@ -1,8 +1,6 @@
 package spAnGB.cpu.thumb
 
-import spAnGB.cpu.CPU
-import spAnGB.cpu.CPUFlag
-import spAnGB.cpu.ThumbInstruction
+import spAnGB.cpu.*
 import spAnGB.utils.bit
 import spAnGB.utils.toInt
 import spAnGB.utils.uLong
@@ -53,11 +51,10 @@ val thumbHiLoCmp = ThumbInstruction(
     {
         val op = getOperands(instr)
 
-        val tmp = op.first - op.second
+        val result = op.first - op.second
 
-        this[CPUFlag.N] = tmp < 0
-        this[CPUFlag.Z] = tmp == 0
-        this[CPUFlag.V] = (op.second xor op.first) and (op.first xor tmp).inv() < 0
-        this[CPUFlag.C] = !((op.first.uLong - op.second.uLong) bit 32)
+        negativeAndZero(result)
+        subOverflow(result, op.first, op.second)
+        dumbBorrow(op.first.uLong - op.second.uLong)
     }
 )

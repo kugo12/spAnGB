@@ -243,12 +243,15 @@ value class SpriteData(val value: Long) { // TODO: rendering code deduplication
         val x = x
         val y = y
 
-        if (is8Bit) {  // TODO: refactoring
+        val start = if (x > 0) x else 0
+        val end = if (start + width >= ScreenWidth) ScreenWidth else x + width
+        val yOffset = lyc - y - if (isMosaic) mosaic.objY else 0
+
+        if (is8Bit) {
             val tileRowSize =
                 if (displayControl.isOneDimensionalMapping) (width / 8) * Tile8BitSize
-                else TwoDimensionalTileRow * Tile8BitSize / 2
+                else TwoDimensionalTileRow * Tile4BitSize
 
-            val yOffset = lyc - y - if (isMosaic) mosaic.objY else 0
 
             val tileRow = if (verticalFlip) {
                 (7 - yOffset % 8) * Tile8BitRow + ((height - yOffset - 1) / 8) * tileRowSize
@@ -258,9 +261,6 @@ value class SpriteData(val value: Long) { // TODO: rendering code deduplication
 
             val n = if (displayControl.isOneDimensionalMapping) tileNumber else tileNumber.and(1.inv())
             val tileRowOffset = SpriteTileOffset + n * Tile4BitSize + tileRow
-
-            val start = if (x > 0) x else 0
-            val end = if (start + width >= ScreenWidth) ScreenWidth else x + width
 
             for (screenPixel in start until end) {
                 val spriteX = if (horizontalFlip) width - (screenPixel - x + 1) else screenPixel - x
@@ -286,8 +286,6 @@ value class SpriteData(val value: Long) { // TODO: rendering code deduplication
                 if (displayControl.isOneDimensionalMapping) (width / 8) * Tile4BitSize
                 else TwoDimensionalTileRow * Tile4BitSize
 
-            val yOffset = lyc - y - if (isMosaic) mosaic.objY else 0
-
             val tileRow = if (verticalFlip) {
                 (7 - yOffset % 8) * Tile4BitRow + ((height - yOffset - 1) / 8) * tileRowSize
             } else {
@@ -295,9 +293,6 @@ value class SpriteData(val value: Long) { // TODO: rendering code deduplication
             }
 
             val tileRowOffset = SpriteTileOffset + tileNumber * Tile4BitSize + tileRow
-
-            val start = if (x > 0) x else 0
-            val end = if (start + width >= ScreenWidth) ScreenWidth else x + width
 
             for (screenPixel in start until end) {
                 val spriteX = if (horizontalFlip) width - (screenPixel - x + 1) else screenPixel - x

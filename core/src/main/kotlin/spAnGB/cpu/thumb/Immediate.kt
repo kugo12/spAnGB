@@ -1,7 +1,6 @@
 package spAnGB.cpu.thumb
 
-import spAnGB.cpu.CPUFlag
-import spAnGB.cpu.ThumbInstruction
+import spAnGB.cpu.*
 import spAnGB.utils.bit
 import spAnGB.utils.uLong
 
@@ -12,8 +11,7 @@ val thumbMovImm = ThumbInstruction(
     { "MovImm" },
     {
         registers[instr.destination] = instr.immediate.apply {
-            set(CPUFlag.N, false)
-            set(CPUFlag.Z, this == 0)
+            negativeAndZero(this)
         }
     }
 )
@@ -25,10 +23,9 @@ val thumbCmpImm = ThumbInstruction(
         val rd = registers[instr.destination]
         val result = rd - imm
 
-        this[CPUFlag.N] = result < 0
-        this[CPUFlag.Z] = result == 0
-        this[CPUFlag.C] = !((rd.uLong - imm.uLong) bit 32)
-        this[CPUFlag.V] = (rd xor imm) and (imm xor result).inv() < 0
+        negativeAndZero(result)
+        dumbBorrow(rd.uLong - imm.uLong)
+        subOverflow(result, rd, imm)
     }
 )
 
@@ -40,10 +37,9 @@ val thumbSubImm = ThumbInstruction(
         val result = rd - imm
         registers[instr.destination] = result
 
-        this[CPUFlag.N] = result < 0
-        this[CPUFlag.Z] = result == 0
-        this[CPUFlag.C] = !((rd.uLong - imm.uLong) bit 32)
-        this[CPUFlag.V] = (rd xor imm) and (imm xor result).inv() < 0
+        negativeAndZero(result)
+        dumbBorrow(rd.uLong - imm.uLong)
+        subOverflow(result, rd, imm)
     }
 )
 
@@ -55,9 +51,8 @@ val thumbAddImm = ThumbInstruction(
         val result = rd + imm
         registers[instr.destination] = result
 
-        this[CPUFlag.N] = result < 0
-        this[CPUFlag.Z] = result == 0
-        this[CPUFlag.C] = (rd.uLong + imm.uLong) bit 32  // TODO: dumb carry
-        this[CPUFlag.V] = (rd xor imm).inv() and (rd xor result) < 0
+        negativeAndZero(result)
+        dumbCarry(rd.uLong + imm.uLong)
+        overflow(result, rd, imm)
     }
 )

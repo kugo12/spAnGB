@@ -15,10 +15,13 @@ val dataProcessingDsl = DataProcessingDsl()  // This is not thread safe at all, 
 
 class DataProcessingDsl {
     lateinit var cpu: CPU
+
     @JvmField
     var operand = 0
+
     @JvmField
     var destinationRegister = 0
+
     @JvmField
     var result = 0
 
@@ -36,11 +39,11 @@ class DataProcessingDsl {
 
 
     inline fun perform(func: DataProcessingDsl.() -> Int) {
-        val tmp = func()
-        result = tmp
-        cpu.registers[destinationRegister] = tmp
-        N = tmp < 0
-        Z = tmp == 0
+        result = func().also {
+            cpu.registers[destinationRegister] = it
+            N = it < 0
+            Z = it == 0
+        }
     }
 
     inline fun performWithoutDestination(func: DataProcessingDsl.() -> Int) {
@@ -52,19 +55,20 @@ class DataProcessingDsl {
     inline fun performShift(func: CPU.(Int, Int) -> Int) {
         cpu.bus.idle()
         cpu.prefetchAccess = AccessType.NonSequential
-        val tmp = cpu.func(destination, operand and 0xFF)
-        cpu.registers[destinationRegister] = tmp
-        C = cpu.shifterCarry
-        N = tmp < 0
-        Z = tmp == 0
+
+        cpu.registers[destinationRegister] = cpu.func(destination, operand and 0xFF).also {
+            C = cpu.shifterCarry
+            N = it < 0
+            Z = it == 0
+        }
     }
 
-    inline fun overflow() {
-        V = (operand xor destination).inv() and (destination xor result) < 0
+    inline fun overflow(operand: Int = this.operand) {
+        cpu.overflow(result, destination, operand)
     }
 
-    inline fun subOverflow() {
-        V = (destination xor operand) and (operand xor result).inv() < 0
+    inline fun subOverflow(operand: Int = this.operand) {
+        cpu.subOverflow(result, destination, operand)
     }
 
     inline fun dumbCarry(func: DataProcessingDsl.() -> Long) {  // TODO
@@ -113,10 +117,11 @@ private inline fun simpleInstruction(crossinline func: DataProcessingDsl.() -> I
     dataProcessingDsl.perform(func)
 }
 
-private inline fun simpleInstructionWithoutDestination(crossinline func: DataProcessingDsl.() -> Int): CPU.() -> Unit = {
-    dataProcessingDsl.initialize(this)
-    dataProcessingDsl.performWithoutDestination(func)
-}
+private inline fun simpleInstructionWithoutDestination(crossinline func: DataProcessingDsl.() -> Int): CPU.() -> Unit =
+    {
+        dataProcessingDsl.initialize(this)
+        dataProcessingDsl.performWithoutDestination(func)
+    }
 
 private inline fun shiftInstruction(crossinline func: CPU.(Int, Int) -> Int): CPU.() -> Unit = {
     dataProcessingDsl.initialize(this)
@@ -187,20 +192,18 @@ val thumbRor = ThumbInstruction(
 val thumbAdc = ThumbInstruction(
     { "Adc" },
     instruction {
-        operand += carry
-        perform { destination + operand }
+        perform { destination + operand + carry }
         overflow()
-        dumbCarry { destination.uLong + operand.uLong }
+        dumbCarry { destination.uLong + operand.uLong + carry.uLong }
     }
 )
 
 val thumbSbc = ThumbInstruction(
     { "Sbc" },
     instruction {
-        operand += 1 - carry
-        perform { destination - operand }
+        perform { destination - operand - 1 + carry }
         subOverflow()
-        dumbBorrow { destination.uLong - operand.uLong }
+        dumbBorrow { destination.uLong - operand.uLong - 1L + carry.uLong }
     }
 )
 

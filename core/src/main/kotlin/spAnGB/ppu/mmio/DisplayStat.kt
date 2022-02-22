@@ -2,6 +2,7 @@ package spAnGB.ppu.mmio
 
 import spAnGB.memory.Memory
 import spAnGB.utils.hex
+import spAnGB.utils.read8From16
 import spAnGB.utils.uInt
 
 
@@ -20,9 +21,7 @@ class DisplayStat: Memory {
 
     val value: Int get() = flags.or(lyc.shl(8))
 
-    override fun read8(address: Int): Byte {
-        TODO("Not yet implemented")
-    }
+    override fun read8(address: Int): Byte = read8From16(address, value)
 
     override fun read16(address: Int): Short {
         return value.toShort()
