@@ -1,4 +1,4 @@
-package spAnGB.apu.mmio
+package spAnGB.apu.mmio.master
 
 import spAnGB.memory.mmio.SimpleMMIO
 

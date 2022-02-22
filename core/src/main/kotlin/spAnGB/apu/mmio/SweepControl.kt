@@ -7,4 +7,6 @@ class SweepControl: SimpleMMIO(mask = 0x7F) {
     inline val shift get() = value and 0x7
     inline val isDecrease get() = value bit 3
     inline val time get() = (value ushr 4) and 0x7
+
+    inline val isEnabled get() = shift != 0 && time != 0
 }

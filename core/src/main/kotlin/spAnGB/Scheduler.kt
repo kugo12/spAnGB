@@ -49,4 +49,11 @@ class Scheduler {
         clear(it)
         func()
     }
+
+    inline fun cyclicTask(cycles: Long, crossinline func: () -> Unit) = object: SchedulerTask {
+        override fun invoke(index: Int) {
+            schedule(cycles, this, index)
+            func()
+        }
+    }.also { schedule(cycles, it) }
 }

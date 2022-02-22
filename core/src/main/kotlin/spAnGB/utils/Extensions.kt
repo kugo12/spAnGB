@@ -8,6 +8,10 @@ inline val Int.hex: String get() = Integer.toHexString(this)
 
 inline infix fun Int.bit(bit: Int): Boolean = and((1 shl bit)) != 0
 inline infix fun Long.bit(bit: Int): Boolean = and((1L shl bit)) != 0L
+inline infix fun Int.unsetBit(bit: Int) = and((1 shl bit).inv())
+inline infix fun Int.setBit(bit: Int) = or(1 shl bit)
+inline fun Int.setBit(bit: Int, value: Boolean) = if (value) unsetBit(bit) else setBit(bit)
+inline fun Int.override(mask: Int, with: Int) = and(mask.inv()).or(with and mask)
 
 inline fun Boolean.toInt(): Int = if (this) 1 else 0
 

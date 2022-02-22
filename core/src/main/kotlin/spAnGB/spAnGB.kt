@@ -10,7 +10,7 @@ import java.nio.ByteBuffer
 class spAnGB(
     framebuffer: ByteBuffer,
     blitFramebuffer: () -> Unit,
-    rom: File = File("suite.gba"),
+    rom: File = File("firered.gba"),
     bios: File = File("bios.bin")
 ) {
     val scheduler = Scheduler()

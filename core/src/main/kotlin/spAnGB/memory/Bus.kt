@@ -24,7 +24,7 @@ class Bus(
     blitFramebuffer: () -> Unit,
     val scheduler: Scheduler
 ) {
-    val apu = APU()
+    val apu = APU(scheduler)
     val mmio = MMIO(this)
     var bios: Memory = Memory.stub
     var unusedMemory: Memory = Memory.stub
