@@ -2,6 +2,7 @@ package spAnGB.ppu.bg
 
 import spAnGB.ppu.PPU
 import spAnGB.ppu.toBufferColor
+import spAnGB.ppu.toColor
 import spAnGB.utils.uInt
 
 fun PPU.renderBgMode0() {
@@ -54,4 +55,10 @@ fun PPU.renderBgMode5() {
     for (it in 0 until 160) {
         buffer[it] = vram.shortBuffer[it + offset].toBufferColor()
     }
+}
+
+fun PPU.renderBgUndefined() {
+    val backdrop = getBackdropColor()
+
+    lineBuffers[2].fill(backdrop.toColor())
 }

@@ -458,7 +458,7 @@ class PPU(
             3 -> renderBgMode3()
             4 -> renderBgMode4()
             5 -> renderBgMode5()
-            else -> TODO("Background mode ${displayControl.bgMode} not implemented")
+            else -> renderBgUndefined()
         }
 
         renderSprites()
