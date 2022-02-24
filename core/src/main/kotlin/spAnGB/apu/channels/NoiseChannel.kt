@@ -1,9 +1,14 @@
 package spAnGB.apu.channels
 
+import spAnGB.Scheduler
+import spAnGB.SchedulerTask
 import spAnGB.apu.mmio.LengthEnvelopeControl
 import spAnGB.apu.mmio.NoiseControl
+import spAnGB.cpu.CLOCK_SPEED
 
-class NoiseChannel : Channel, WithLength, WithEnvelope, WithFrequency {
+class NoiseChannel(
+    val scheduler: Scheduler
+) : Channel, WithLength, WithEnvelope {
     val envelope = LengthEnvelopeControl()
     val control = NoiseControl(::onReset)
 
@@ -11,6 +16,28 @@ class NoiseChannel : Channel, WithLength, WithEnvelope, WithFrequency {
     var volume = 0
     var lfsr = 0
     private var sample = 0
+
+    inline val cyclesPerIncrement get() = control.cycles
+
+    var taskIndex = -1
+    val task = object: SchedulerTask {
+        override fun invoke(p1: Int) {
+            val carry = lfsr and 1
+
+            if (carry != 0) {
+                lfsr = lfsr.ushr(1).xor(if (control.is7Bits) 0x60 else 0x6000)
+            }
+
+            sample = carry * 2 - 1
+
+            if (!isEnabled) {
+                taskIndex = -1
+                scheduler.clear(p1)
+            } else {
+                scheduler.schedule(cyclesPerIncrement.toLong(), this, p1)
+            }
+        }
+    }
 
     override fun getSample(): Int {
         if (!isEnabled) return 0
@@ -20,9 +47,14 @@ class NoiseChannel : Channel, WithLength, WithEnvelope, WithFrequency {
 
     override fun onReset() {
         isEnabled = true
-        lfsr = 0x7FFF
+        lfsr = if (control.is7Bits) 0x40 else 0x4000
+        sample = 1
+
+        if (envelope.length == 0) envelope.length = 0x3F
 
         volume = envelope.initEnvelope()
+
+        if (taskIndex == -1) taskIndex = scheduler.schedule(cyclesPerIncrement.toLong(), task)
     }
 
     override fun stepLength() {
@@ -36,23 +68,6 @@ class NoiseChannel : Channel, WithLength, WithEnvelope, WithFrequency {
     override fun stepEnvelope() {
         if (envelope.envelopeStepTime != 0) {
             volume = envelope.stepEnvelope(volume)
-        }
-    }
-
-    override fun step(cycles: Long) {
-        val n = cycles / control.divider
-
-        for (it in 0 until n) {  // TODO: funny LUT
-            val xored = lfsr.xor(lfsr ushr 1) and 1
-            lfsr = lfsr ushr 1
-
-            lfsr = if (control.is7Bits) {
-                (lfsr and 0x4000.inv()) or (xored shl 14)
-            } else {
-                (lfsr and 0x0040.inv()) or (xored shl 5)
-            }
-
-            sample = lfsr.and(1) * -2 - 1
         }
     }
 }

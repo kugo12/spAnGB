@@ -46,7 +46,7 @@ class FirstScreen : KtxScreen {
         clearScreen(0f, 0f, .25f)
         stage.draw()
         emulator.bus.mmio.keyInput.poll()
-        (0..CLOCK_SPEED/60).forEach { emulator.tick() }
+        emulator.stepFrame()
         stage.act()
     }
 

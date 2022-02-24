@@ -25,7 +25,7 @@ class LengthEnvelopeControl: SimpleMMIO() {
     }
 
     fun stepEnvelope(currentVolume: Int): Int {
-        return if (envelopeCounter > 0) {
+        return if (envelopeStepTime == 0 || envelopeCounter > 0) {
             envelopeCounter -= 1
             currentVolume
         } else {

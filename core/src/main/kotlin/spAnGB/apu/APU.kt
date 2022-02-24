@@ -1,6 +1,9 @@
 package spAnGB.apu
 
 import com.badlogic.gdx.Gdx
+import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import spAnGB.Scheduler
 import spAnGB.apu.channels.*
 import spAnGB.apu.mmio.master.MainVolumeControl
@@ -8,25 +11,41 @@ import spAnGB.apu.mmio.master.SoundBias
 import spAnGB.apu.mmio.master.SoundControl
 import spAnGB.apu.mmio.master.SoundMasterControl
 import spAnGB.cpu.CLOCK_SPEED
+import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.coroutineContext
 
 const val SAMPLING_RATE = 32768
 const val APU_CLOCK = (CLOCK_SPEED / SAMPLING_RATE).toLong()
 const val FS_CLOCK = (CLOCK_SPEED / 512).toLong()
-const val AUDIO_BUFFER_SIZE = 1024
+const val AUDIO_BUFFER_SIZE = 4096
 
 class AudioManager {
     val audio = Gdx.audio.newAudioDevice(SAMPLING_RATE, false)
     val buffer = ShortArray(AUDIO_BUFFER_SIZE)
+
+    val m = Mutex()
+
     var ptr = 0
 
-    inline fun putSamples(left: Int, right: Int) {
+    val scope = CoroutineScope(Dispatchers.Default)
+
+    fun putSamples(left: Int, right: Int) {
         buffer[ptr] = left.toShort()
         buffer[ptr + 1] = right.toShort()
         ptr += 2
 
+
         if (ptr >= AUDIO_BUFFER_SIZE) {
             ptr = 0
-            audio.writeSamples(buffer, 0, AUDIO_BUFFER_SIZE)
+            playBuffer(buffer.copyOf())
+        }
+    }
+
+    fun playBuffer(buffer: ShortArray) {
+        scope.launch {  // TODO
+            m.withLock {
+                audio.writeSamples(buffer, 0, AUDIO_BUFFER_SIZE)
+            }
         }
     }
 }
@@ -36,10 +55,10 @@ class APU(  // TODO: i'm currently making it work, but I really need to do refac
 ) {
     val audio = AudioManager()
 
-    val sweep = SweepToneChannel()
-    val tone = ToneChannel()
+    val sweep = SweepToneChannel(scheduler)
+    val tone = ToneChannel(scheduler)
     val wave = WaveChannel()
-    val noise = NoiseChannel()
+    val noise = NoiseChannel(scheduler)
     val fifoA = FIFOChannel()
     val fifoB = FIFOChannel()
 
@@ -58,10 +77,7 @@ class APU(  // TODO: i'm currently making it work, but I really need to do refac
     }
 
     private fun tick() {
-        sweep.step(APU_CLOCK)
-        tone.step(APU_CLOCK)
         wave.step(APU_CLOCK)
-        noise.step(APU_CLOCK)
 
         var left = 0
         var right = 0
@@ -83,7 +99,7 @@ class APU(  // TODO: i'm currently making it work, but I really need to do refac
         left *= volume.volumeLeft
         right *= volume.volumeRight
 
-        audio.putSamples(left, right)
+        audio.putSamples(left * 4, right * 4)
     }
 
     var fsCounter = 0

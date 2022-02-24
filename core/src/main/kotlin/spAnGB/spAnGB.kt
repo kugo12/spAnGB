@@ -1,16 +1,19 @@
 package spAnGB
 
+import spAnGB.cpu.CLOCK_SPEED
 import spAnGB.memory.rom.Bios
 import spAnGB.memory.Bus
 import spAnGB.memory.UnusedMemory
 import java.io.File
 import java.nio.ByteBuffer
 
+const val CYCLES_PER_FRAME = CLOCK_SPEED / 60
+
 @Suppress("ClassName")
 class spAnGB(
     framebuffer: ByteBuffer,
     blitFramebuffer: () -> Unit,
-    rom: File = File("firered.gba"),
+    rom: File = File("tonc-bin/bin/irq_demo.gba"),
     bios: File = File("bios.bin")
 ) {
     val scheduler = Scheduler()
@@ -32,5 +35,10 @@ class spAnGB(
     fun tick() {
         if(cpu.tick())
             scheduler.tick()
+    }
+
+    fun stepFrame() {
+        val target = scheduler.counter + CYCLES_PER_FRAME
+        while (scheduler.counter < target) tick()
     }
 }

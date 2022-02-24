@@ -9,16 +9,13 @@ import spAnGB.apu.mmio.WaveRamSelect
 import spAnGB.cpu.CLOCK_SPEED
 import spAnGB.utils.uInt
 
-const val GB_CLOCK_SPEED = 4194304
-
-class WaveChannel : Channel, WithFrequency, WithLength {
+class WaveChannel : Channel, WithFrequency, WithLength {  // FIXME
     val select = WaveRamSelect()
     val volume = WaveLengthVolume()
     val control = FrequencyControl(::onReset)
     val ram = WaveRAM(select)
 
     var currentSample = 0
-    var isEnabled = false
 
     override fun getSample(): Int {
         if (!select.isEnabled) return 0
@@ -30,11 +27,14 @@ class WaveChannel : Channel, WithFrequency, WithLength {
                 it.toInt() and 0xF
         }
 
-        return sample ushr volume.volume
+        return 0  //sample ushr volume.volume
     }
 
     override fun onReset() {
-        isEnabled = true
+        select.isEnabled = true
+
+        if (volume.length == 0) volume.length = 0xFF
+
         currentSample = 0
     }
 
@@ -52,6 +52,6 @@ class WaveChannel : Channel, WithFrequency, WithLength {
         val mask = select.counterMask
 
         val x = cycles / control.cyclesPerIncrement
-        currentSample = (currentSample + x.toInt()) and mask
+        currentSample = (currentSample + x.toInt().coerceAtLeast(1)) and mask
     }
 }

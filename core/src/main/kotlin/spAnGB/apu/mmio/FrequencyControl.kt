@@ -1,9 +1,7 @@
 package spAnGB.apu.mmio
 
-import spAnGB.apu.channels.GB_CLOCK_SPEED
 import spAnGB.cpu.CLOCK_SPEED
 import spAnGB.memory.Memory
-import spAnGB.memory.mmio.SimpleMMIO
 import spAnGB.utils.bit
 import spAnGB.utils.read8From16
 import spAnGB.utils.unsetBit
@@ -21,7 +19,7 @@ open class FrequencyControl(
 
     private fun clearRestart() { value = value unsetBit 15 }
 
-    inline val cyclesPerIncrement get() = CLOCK_SPEED / (GB_CLOCK_SPEED / (32 * frequency))
+    inline val cyclesPerIncrement get() = CLOCK_SPEED / (131072/(2048-frequency)) / 8
 
     override fun read8(address: Int): Byte = read8From16(address, value)
     override fun read16(address: Int): Short = value.toShort()

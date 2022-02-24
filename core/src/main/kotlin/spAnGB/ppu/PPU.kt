@@ -116,43 +116,40 @@ class PPU(
     }
 
     @JvmField
-    val mixingIsEnabled = Array(4) { BooleanArray(6) }
+    val windowIsEnabled = Array(4) { BooleanArray(6) }
 
     fun fillWindowLut() {  // FIXME: cursed
-        mixingIsEnabled[0][0] = winIn.isWin0Bg0
-        mixingIsEnabled[0][1] = winIn.isWin0Bg1
-        mixingIsEnabled[0][2] = winIn.isWin0Bg2
-        mixingIsEnabled[0][3] = winIn.isWin0Bg3
-        mixingIsEnabled[0][LUT_OBJ] = winIn.isWin0Obj
-        mixingIsEnabled[0][LUT_SPECIAL] = winIn.isWin0SpecialEffects
+        windowIsEnabled[0][0] = winIn.isWin0Bg0
+        windowIsEnabled[0][1] = winIn.isWin0Bg1
+        windowIsEnabled[0][2] = winIn.isWin0Bg2
+        windowIsEnabled[0][3] = winIn.isWin0Bg3
+        windowIsEnabled[0][LUT_OBJ] = winIn.isWin0Obj
+        windowIsEnabled[0][LUT_SPECIAL] = winIn.isWin0SpecialEffects
 
-        mixingIsEnabled[1][0] = winIn.isWin1Bg0
-        mixingIsEnabled[1][1] = winIn.isWin1Bg1
-        mixingIsEnabled[1][2] = winIn.isWin1Bg2
-        mixingIsEnabled[1][3] = winIn.isWin1Bg3
-        mixingIsEnabled[1][LUT_OBJ] = winIn.isWin1Obj
-        mixingIsEnabled[1][LUT_SPECIAL] = winIn.isWin1SpecialEffects
+        windowIsEnabled[1][0] = winIn.isWin1Bg0
+        windowIsEnabled[1][1] = winIn.isWin1Bg1
+        windowIsEnabled[1][2] = winIn.isWin1Bg2
+        windowIsEnabled[1][3] = winIn.isWin1Bg3
+        windowIsEnabled[1][LUT_OBJ] = winIn.isWin1Obj
+        windowIsEnabled[1][LUT_SPECIAL] = winIn.isWin1SpecialEffects
 
-        mixingIsEnabled[2][0] = winOut.isBg0
-        mixingIsEnabled[2][1] = winOut.isBg1
-        mixingIsEnabled[2][2] = winOut.isBg2
-        mixingIsEnabled[2][3] = winOut.isBg3
-        mixingIsEnabled[2][LUT_OBJ] = winOut.isObj
-        mixingIsEnabled[2][LUT_SPECIAL] = winOut.isSpecialEffects
+        windowIsEnabled[2][0] = winOut.isBg0
+        windowIsEnabled[2][1] = winOut.isBg1
+        windowIsEnabled[2][2] = winOut.isBg2
+        windowIsEnabled[2][3] = winOut.isBg3
+        windowIsEnabled[2][LUT_OBJ] = winOut.isObj
+        windowIsEnabled[2][LUT_SPECIAL] = winOut.isSpecialEffects
 
-        mixingIsEnabled[3][0] = winOut.isObjWinBg0
-        mixingIsEnabled[3][1] = winOut.isObjWinBg1
-        mixingIsEnabled[3][2] = winOut.isObjWinBg2
-        mixingIsEnabled[3][3] = winOut.isObjWinBg3
-        mixingIsEnabled[3][LUT_OBJ] = winOut.isObjWinObj
-        mixingIsEnabled[3][LUT_SPECIAL] = winOut.isObjWinSpecialEffects
+        windowIsEnabled[3][0] = winOut.isObjWinBg0
+        windowIsEnabled[3][1] = winOut.isObjWinBg1
+        windowIsEnabled[3][2] = winOut.isObjWinBg2
+        windowIsEnabled[3][3] = winOut.isObjWinBg3
+        windowIsEnabled[3][LUT_OBJ] = winOut.isObjWinObj
+        windowIsEnabled[3][LUT_SPECIAL] = winOut.isObjWinSpecialEffects
     }
 
     fun getBackdropColor() = palette.shortBuffer[0].toInt().let {
-        when {
-            blend.firstBd && blend.mode > 1 -> brightnessBlend(it)
-            else -> it
-        }
+        if (blend.firstBd && blend.mode > 1) brightnessBlend(it) else it
     }
 
     fun alphaBlend(first: Int, second: Int) = transformColors(first, second) { a, b ->
@@ -223,18 +220,16 @@ class PPU(
                     }
                 }
 
-
-                finalBuffer[pixel] = if (
-                    (blend isFirst topIndex && blend isSecond bottomIndex && blend.mode == 1) ||
-                    (topIndex == PixelType.Sprite && spritePixel.isSemiTransparent && blend isSecond bottomIndex)
-                ) {
-                    alphaBlend(topColor, bottomColor).toColor()
-                } else if (blend.mode > 1 && blend isFirst topIndex) {
-                    brightnessBlend(topColor).toColor()
-                } else if (topColor == 0) {
-                    backdrop.toColor()
-                } else {
-                    topColor.toColor()
+                val isTopFirstTarget = blend isFirst topIndex
+                val isBottomSecondTarget = blend isSecond bottomIndex
+                finalBuffer[pixel] = when {
+                    isTopFirstTarget && isBottomSecondTarget && blend.mode == 1 ||
+                            topIndex == PixelType.Sprite && spritePixel.isSemiTransparent && isBottomSecondTarget -> alphaBlend(
+                        topColor,
+                        bottomColor
+                    ).toColor()
+                    blend.mode > 1 && isTopFirstTarget -> brightnessBlend(topColor).toColor()
+                    else -> topColor.toColor()
                 }
             }
         }
@@ -244,7 +239,7 @@ class PPU(
 
 
     fun mixBuffers(bgs: Array<BackgroundControl>, backdrop: Int, pixel: Int) {
-        val isEnabled = mixingIsEnabled[getCurrentWindow(pixel)]
+        val isEnabled = windowIsEnabled[getCurrentWindow(pixel)]
 
         var bottomColor = backdrop
         var topColor = backdrop
@@ -282,18 +277,21 @@ class PPU(
             }
         }
 
-        finalBuffer[pixel] = if (
-            isEnabled[LUT_SPECIAL] &&
-            ((blend isFirst topIndex && blend isSecond bottomIndex && blend.mode == 1) ||
-                    (topIndex == PixelType.Sprite && spritePixel.isSemiTransparent && blend isSecond bottomIndex))
-        ) {
-            alphaBlend(topColor, bottomColor).toColor()
-        } else if (isEnabled[LUT_SPECIAL] && blend.mode > 1 && blend isFirst topIndex) {
-            brightnessBlend(topColor).toColor()
-        } else if (topColor == 0) {
-            backdrop.toColor()
-        } else {
-            topColor.toColor()
+        val isTopFirstTarget = blend isFirst topIndex
+        val isBottomSecondTarget = blend isSecond bottomIndex
+        val isSpecial = isEnabled[LUT_SPECIAL]
+        finalBuffer[pixel] = when {
+            isSpecial &&
+                    ((isTopFirstTarget && isBottomSecondTarget && blend.mode == 1) ||
+                            (topIndex == PixelType.Sprite && spritePixel.isSemiTransparent && isBottomSecondTarget)) -> {
+                alphaBlend(topColor, bottomColor).toColor()
+            }
+            isSpecial && blend.mode > 1 && isTopFirstTarget -> {
+                brightnessBlend(topColor).toColor()
+            }
+            else -> {
+                topColor.toColor()
+            }
         }
     }
 
