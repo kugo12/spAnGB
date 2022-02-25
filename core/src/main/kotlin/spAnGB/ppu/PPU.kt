@@ -19,27 +19,11 @@ import spAnGB.ppu.mmio.blend.BlendControl
 import spAnGB.ppu.mmio.win.WindowDimension
 import spAnGB.ppu.mmio.win.WindowInsideControl
 import spAnGB.ppu.mmio.win.WindowOutsideControl
-import spAnGB.utils.bit
-import spAnGB.utils.uInt
+import spAnGB.ppu.sprite.SpritePixel
+import spAnGB.ppu.sprite.renderSprites
 import java.nio.ByteBuffer
 
 // TODO: BIG REFACTORING
-
-const val HDRAW_CYCLES = 1006L
-const val HBLANK_CYCLES = 226L
-const val SCANLINE_CYCLES = HDRAW_CYCLES + HBLANK_CYCLES
-
-const val VBLANK_HEIGHT = 68
-const val VDRAW_HEIGHT = 160
-const val TOTAL_HEIGHT = VBLANK_HEIGHT + VDRAW_HEIGHT
-
-private const val LUT_OBJ = 4
-private const val LUT_SPECIAL = 5
-
-object PixelType {
-    const val Sprite = 4
-    const val Backdrop = 5
-}
 
 class PPU(
     framebuffer: ByteBuffer,
@@ -123,29 +107,29 @@ class PPU(
         windowIsEnabled[0][1] = winIn.isWin0Bg1
         windowIsEnabled[0][2] = winIn.isWin0Bg2
         windowIsEnabled[0][3] = winIn.isWin0Bg3
-        windowIsEnabled[0][LUT_OBJ] = winIn.isWin0Obj
-        windowIsEnabled[0][LUT_SPECIAL] = winIn.isWin0SpecialEffects
+        windowIsEnabled[0][PixelType.Sprite] = winIn.isWin0Obj
+        windowIsEnabled[0][SpecialEffectsLut] = winIn.isWin0SpecialEffects
 
         windowIsEnabled[1][0] = winIn.isWin1Bg0
         windowIsEnabled[1][1] = winIn.isWin1Bg1
         windowIsEnabled[1][2] = winIn.isWin1Bg2
         windowIsEnabled[1][3] = winIn.isWin1Bg3
-        windowIsEnabled[1][LUT_OBJ] = winIn.isWin1Obj
-        windowIsEnabled[1][LUT_SPECIAL] = winIn.isWin1SpecialEffects
+        windowIsEnabled[1][PixelType.Sprite] = winIn.isWin1Obj
+        windowIsEnabled[1][SpecialEffectsLut] = winIn.isWin1SpecialEffects
 
         windowIsEnabled[2][0] = winOut.isBg0
         windowIsEnabled[2][1] = winOut.isBg1
         windowIsEnabled[2][2] = winOut.isBg2
         windowIsEnabled[2][3] = winOut.isBg3
-        windowIsEnabled[2][LUT_OBJ] = winOut.isObj
-        windowIsEnabled[2][LUT_SPECIAL] = winOut.isSpecialEffects
+        windowIsEnabled[2][PixelType.Sprite] = winOut.isObj
+        windowIsEnabled[2][SpecialEffectsLut] = winOut.isSpecialEffects
 
         windowIsEnabled[3][0] = winOut.isObjWinBg0
         windowIsEnabled[3][1] = winOut.isObjWinBg1
         windowIsEnabled[3][2] = winOut.isObjWinBg2
         windowIsEnabled[3][3] = winOut.isObjWinBg3
-        windowIsEnabled[3][LUT_OBJ] = winOut.isObjWinObj
-        windowIsEnabled[3][LUT_SPECIAL] = winOut.isObjWinSpecialEffects
+        windowIsEnabled[3][PixelType.Sprite] = winOut.isObjWinObj
+        windowIsEnabled[3][SpecialEffectsLut] = winOut.isObjWinSpecialEffects
     }
 
     fun getBackdropColor() = palette.shortBuffer[0].toInt().let {
@@ -265,7 +249,7 @@ class PPU(
         }
 
         val spritePixel = spriteBuffer[pixel]
-        if (isEnabled[LUT_OBJ] && spritePixel.priority != TransparentPriority) {
+        if (isEnabled[PixelType.Sprite] && spritePixel.priority != TransparentPriority) {
             if (spritePixel.priority <= topPriority) {
                 bottomIndex = topIndex
                 bottomColor = topColor
@@ -279,7 +263,7 @@ class PPU(
 
         val isTopFirstTarget = blend isFirst topIndex
         val isBottomSecondTarget = blend isSecond bottomIndex
-        val isSpecial = isEnabled[LUT_SPECIAL]
+        val isSpecial = isEnabled[SpecialEffectsLut]
         finalBuffer[pixel] = when {
             isSpecial &&
                     ((isTopFirstTarget && isBottomSecondTarget && blend.mode == 1) ||
@@ -299,17 +283,17 @@ class PPU(
         if (mosaic.backgroundHorizontal == 0) return
 
         for (it in 0..3) {
-            if (bgControl[it].isMosaic) {
-                val buffer = lineBuffers[it]
+            if (!bgControl[it].isMosaic) continue
 
-                for (pixel in 0 until 240) {
-                    if (mosaic.bgX != 0) {
-                        buffer[pixel] = buffer[pixel - 1]
-                    }
-                    mosaic.advanceBgX()
+            val buffer = lineBuffers[it]
+
+            for (pixel in 0 until 240) {
+                if (mosaic.bgX != 0) {
+                    buffer[pixel] = buffer[pixel - 1]
                 }
-                mosaic.bgX = 0
+                mosaic.advanceBgX()
             }
+            mosaic.bgX = 0
         }
     }
 
@@ -330,107 +314,6 @@ class PPU(
                 mosaic.objX = 0
             }
         }
-    }
-
-    fun blit8BitTileRow(
-        buffer: IntArray,
-        tileRowOffset: Int,
-        currentPixelX: Int,
-        pixelsToSkipEnd: Int,
-        flip: Boolean,
-        pixelsToSkipStart: Int = 0
-    ): Int {
-        val pixelsFromRowToRender = if (7 - pixelsToSkipEnd + currentPixelX >= 240)
-            239 - currentPixelX else 7 - pixelsToSkipEnd
-
-        var x = 0
-
-        if (flip) {
-            for (it in pixelsFromRowToRender downTo pixelsToSkipStart) {
-                blit8BitPixel(
-                    buffer,
-                    tileRowOffset + it,
-                    x + currentPixelX
-                )
-
-                x += 1
-            }
-        } else {
-            for (it in pixelsToSkipStart..pixelsFromRowToRender) {
-                blit8BitPixel(
-                    buffer,
-                    tileRowOffset + it,
-                    x + currentPixelX
-                )
-
-                x += 1
-            }
-        }
-
-        return x
-    }
-
-    fun blit8BitPixel(buffer: IntArray, vramOffset: Int, pixelInBuffer: Int) {
-        val color = vram.byteBuffer[vramOffset].uInt
-
-        if (color != 0)
-            buffer[pixelInBuffer] = palette.shortBuffer[color].toBufferColor()
-    }
-
-    fun blit4BitTileRow(
-        buffer: IntArray,
-        tileRowOffset: Int,
-        currentPixelX: Int,
-        pixelsToSkipEnd: Int,
-        paletteOffset: Int,
-        flip: Boolean,
-        pixelsToSkipStart: Int = 0
-    ): Int {
-        val pixelsFromRowToRender = if (7 - pixelsToSkipEnd + currentPixelX >= 240)
-            239 - currentPixelX else 7 - pixelsToSkipEnd
-
-        var x = 0
-
-        if (flip) {
-            for (it in pixelsFromRowToRender downTo pixelsToSkipStart) {
-                blit4BitPixel(
-                    buffer,
-                    tileRowOffset + it / 2,
-                    paletteOffset,
-                    it,
-                    x + currentPixelX
-                )
-
-                x += 1
-            }
-        } else {
-            for (it in pixelsToSkipStart..pixelsFromRowToRender) {
-                blit4BitPixel(
-                    buffer,
-                    tileRowOffset + it / 2,
-                    paletteOffset,
-                    it,
-                    x + currentPixelX
-                )
-
-                x += 1
-            }
-        }
-
-        return x
-    }
-
-    fun blit4BitPixel(buffer: IntArray, vramOffset: Int, paletteOffset: Int, pixel: Int, pixelInBuffer: Int) {
-        val color = vram.byteBuffer[vramOffset].toInt().let {
-            if (pixel bit 0) {
-                it.ushr(4).and(0xF)
-            } else {
-                it and 0xF
-            }
-        }
-
-        if (color != 0)
-            buffer[pixelInBuffer] = palette.shortBuffer[color + paletteOffset].toBufferColor()
     }
 
     fun clearLineBuffers() {

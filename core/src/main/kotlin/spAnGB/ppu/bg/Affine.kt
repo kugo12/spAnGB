@@ -1,23 +1,14 @@
 package spAnGB.ppu.bg
 
-import spAnGB.ppu.PPU
-import spAnGB.ppu.Tile8BitRow
-import spAnGB.ppu.Tile8BitSize
-import spAnGB.ppu.toBufferColor
+import spAnGB.ppu.*
 import spAnGB.utils.KiB
 import spAnGB.utils.uInt
 
-val affineBackgroundSizes = arrayOf(
-    intArrayOf(128, 128),
-    intArrayOf(256, 256),
-    intArrayOf(512, 512),
-    intArrayOf(1024, 1024),
-)
 
 fun PPU.renderBgAffine(n: Int) {
     val control = bgControl[n]
     val buffer = lineBuffers[n]
-    val (width, height) = affineBackgroundSizes[control.size]
+    val (width, height) = AffineBackgroundSizes[control.size]
     val isWraparound = control.isWrapAround
 
     val tileMapOffset = control.characterBaseBlock * 16 * KiB

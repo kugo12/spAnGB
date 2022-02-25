@@ -1,6 +1,9 @@
+@file:Suppress("NOTHING_TO_INLINE")
+
 package spAnGB.ppu
 
 import spAnGB.ppu.mmio.bg.BackgroundCoordinate
+import spAnGB.ppu.sprite.SpritePixel
 import spAnGB.utils.uInt
 
 inline fun Short.toBufferColor() = uInt or 0x40000000
@@ -12,6 +15,8 @@ inline fun Short.toColor() = toInt().toColor()
 inline fun Array<BackgroundCoordinate>.copyToInternal() = forEach { it.internal = it.value }
 inline fun Array<BackgroundCoordinate>.lock() = forEach { it.lock = true }
 inline fun Array<BackgroundCoordinate>.unlock() = forEach { it.lock = false }
+
+inline fun Array<SpritePixel>.clear() = forEach(SpritePixel::clear)
 
 inline fun Int.toColor() =
     and(0x1F).shl(27)  // R

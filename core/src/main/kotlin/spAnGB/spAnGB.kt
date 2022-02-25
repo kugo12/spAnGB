@@ -13,7 +13,7 @@ const val CYCLES_PER_FRAME = CLOCK_SPEED / 60
 class spAnGB(
     framebuffer: ByteBuffer,
     blitFramebuffer: () -> Unit,
-    rom: File = File("tonc-bin/bin/irq_demo.gba"),
+    rom: File = File("kirbynightmare.gba"),
     bios: File = File("bios.bin")
 ) {
     val scheduler = Scheduler()
