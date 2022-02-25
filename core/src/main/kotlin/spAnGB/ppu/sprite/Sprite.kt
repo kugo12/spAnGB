@@ -50,9 +50,41 @@ value class SpriteData(val value: Long) { // TODO: rendering code deduplication
             return
 
         if (isTransform) {
-            internalRender(::renderAffine)
+            if (is8Bit) {
+                renderAffine(
+                    Tile8BitRow, Tile8BitSize,
+                    { if (displayControl.isOneDimensionalMapping) tileNumber else tileNumber.and(1.inv()) },
+                    { SpritePaletteOffset },
+                    { color, _ -> color },
+                    { it }
+                )
+            } else {
+                renderAffine(
+                    Tile4BitRow, Tile4BitSize,
+                    { tileNumber },
+                    { 16 * paletteNumber + SpritePaletteOffset },
+                    { color, x -> color.ushr(x.and(1).times(4)).and(0xF) },
+                    { it / 2 }
+                )
+            }
         } else {
-            internalRender(::renderText)
+            if (is8Bit) {
+                renderText(
+                    Tile8BitRow, Tile8BitSize,
+                    { if (displayControl.isOneDimensionalMapping) tileNumber else tileNumber.and(1.inv()) },
+                    { SpritePaletteOffset },
+                    { color, _ -> color },
+                    { it }
+                )
+            } else {
+                renderText(
+                    Tile4BitRow, Tile4BitSize,
+                    { tileNumber },
+                    { 16 * paletteNumber + SpritePaletteOffset },
+                    { color, x -> color.ushr(x.and(1).times(4)).and(0xF) },
+                    { it / 2 }
+                )
+            }
         }
     }
 
@@ -70,27 +102,7 @@ value class SpriteData(val value: Long) { // TODO: rendering code deduplication
                 x > -width
     }
 
-    private inline fun PPU.internalRender(func: RenderFn) =
-        if (is8Bit) {
-            func(
-                this, Tile8BitRow, Tile8BitSize,
-                { if (displayControl.isOneDimensionalMapping) tileNumber else tileNumber.and(1.inv()) },
-                { SpritePaletteOffset },
-                { color, _ -> color },
-                { it }
-            )
-        } else {
-            func(
-                this, Tile4BitRow, Tile4BitSize,
-                { tileNumber },
-                { 16 * paletteNumber + SpritePaletteOffset },
-                { color, x -> color.ushr(x.and(1).times(4)).and(0xF) },
-                { it / 2 }
-            )
-        }
-
-    private inline fun renderText(
-        ppu: PPU,
+    private inline fun PPU.renderText(
         rowSize: Int,
         tileSize: Int,
         getTileNumber: () -> Int,
@@ -98,8 +110,8 @@ value class SpriteData(val value: Long) { // TODO: rendering code deduplication
         getPixelColor: (Int, Int) -> Int,
         getXInTile: (Int) -> Int
     ) {
-        val buffer = ppu.spriteBuffer
-        val lyc = ppu.vcount.ly
+        val buffer = spriteBuffer
+        val lyc = vcount.ly
 
         val isWindow = mode == 2
         val isMosaic = isMosaic
@@ -112,11 +124,11 @@ value class SpriteData(val value: Long) { // TODO: rendering code deduplication
 
         val start = if (x > 0) x else 0
         val end = if (start + width >= ScreenWidth) ScreenWidth else x + width
-        val yOffset = lyc - y - if (isMosaic) ppu.mosaic.objY else 0
+        val yOffset = lyc - y - if (isMosaic) mosaic.objY else 0
 
         val paletteOffset = getPaletteOffset()
         val tileRowSize =
-            if (ppu.displayControl.isOneDimensionalMapping) (width / 8) * tileSize
+            if (displayControl.isOneDimensionalMapping) (width / 8) * tileSize
             else TwoDimensionalTileRow * Tile4BitSize
 
         val tileRow = if (verticalFlip) {
@@ -134,7 +146,7 @@ value class SpriteData(val value: Long) { // TODO: rendering code deduplication
                     ((spriteX / 8) * tileSize) +
                     getXInTile(spriteX % 8)
 
-            val color = getPixelColor(ppu.vram.byteBuffer[vramOffset].uInt, spriteX)
+            val color = getPixelColor(vram.byteBuffer[vramOffset].uInt, spriteX)
 
             buffer[screenPixel].apply(
                 color == 0,
@@ -142,13 +154,12 @@ value class SpriteData(val value: Long) { // TODO: rendering code deduplication
                 priority,
                 isMosaic,
                 isSemiTransparent,
-                ppu.palette.shortBuffer[color + paletteOffset]
+                palette.shortBuffer[color + paletteOffset]
             )
         }
     }
 
-    private inline fun renderAffine(
-        ppu: PPU,
+    private inline fun PPU.renderAffine(
         rowSize: Int,
         tileSize: Int,
         getTileNumber: () -> Int,
@@ -156,8 +167,8 @@ value class SpriteData(val value: Long) { // TODO: rendering code deduplication
         getPixelColor: (Int, Int) -> Int,
         getXInTile: (Int) -> Int
     ) {
-        val buffer = ppu.spriteBuffer
-        val lyc = ppu.vcount.ly
+        val buffer = spriteBuffer
+        val lyc = vcount.ly
 
         val isMosaic = isMosaic
         val isSemiTransparent = mode == 1
@@ -170,19 +181,19 @@ value class SpriteData(val value: Long) { // TODO: rendering code deduplication
         val y = y
 
         val paramOffset = affineParameters * 0x10 + 3
-        val pa = ppu.attributes.shortBuffer[paramOffset].toLong()
-        val pb = ppu.attributes.shortBuffer[paramOffset + 4].toLong()
-        val pc = ppu.attributes.shortBuffer[paramOffset + 8].toLong()
-        val pd = ppu.attributes.shortBuffer[paramOffset + 12].toLong()
+        val pa = attributes.shortBuffer[paramOffset].toLong()
+        val pb = attributes.shortBuffer[paramOffset + 4].toLong()
+        val pc = attributes.shortBuffer[paramOffset + 8].toLong()
+        val pd = attributes.shortBuffer[paramOffset + 12].toLong()
 
         val paletteOffset = getPaletteOffset()
         val tileRowSize =
-            if (ppu.displayControl.isOneDimensionalMapping) (originalWidth / 8) * tileSize
+            if (displayControl.isOneDimensionalMapping) (originalWidth / 8) * tileSize
             else TwoDimensionalTileRow * Tile4BitSize
 
         val tileOffset = SpriteTileOffset + getTileNumber() * Tile4BitSize
 
-        val yInSprite = lyc - y - (height / 2) - if (isMosaic) ppu.mosaic.objY else 0
+        val yInSprite = lyc - y - (height / 2) - if (isMosaic) mosaic.objY else 0
 
         val start = if (x > 0) x else 0
         val end = if (start + width >= ScreenWidth) ScreenWidth else x + width
@@ -201,7 +212,7 @@ value class SpriteData(val value: Long) { // TODO: rendering code deduplication
                     ((cX / 8) * tileSize) +
                     getXInTile(cX % 8)
 
-            val color = getPixelColor(ppu.vram.byteBuffer[vramOffset].toInt(), cX)
+            val color = getPixelColor(vram.byteBuffer[vramOffset].toInt(), cX)
 
             buffer[currentPixel].apply(
                 color == 0,
@@ -209,7 +220,7 @@ value class SpriteData(val value: Long) { // TODO: rendering code deduplication
                 priority,
                 isMosaic,
                 isSemiTransparent,
-                ppu.palette.shortBuffer[color + paletteOffset]
+                palette.shortBuffer[color + paletteOffset]
             )
         }
     }

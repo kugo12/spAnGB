@@ -41,6 +41,8 @@ class PPU(
     val attributes = OAM()
 
     val bgControl = Array(4) { BackgroundControl(it) }
+    private val sortedBackgrounds = bgControl.copyOf()
+
     val bgXOffset = Array(4) { BackgroundOffset() }
     val bgYOffset = Array(4) { BackgroundOffset() }
     val bgMatrix = Array(8) { BackgroundParameter() }
@@ -151,11 +153,35 @@ class PPU(
         }
     }
 
-    fun renderMixedBuffers() {  // TODO: refactoring
-        val sortedBackgrounds = bgControl
-            .filter { displayControl isBg it.index }
-            .sortedBy { it.priority }
-            .toTypedArray()
+    private fun sortBackgrounds(): Int {
+        bgControl.copyInto(sortedBackgrounds)
+
+        var index = 0
+        var tmpIndex = -1
+
+        while (index < sortedBackgrounds.size) {
+            var bg: BackgroundControl? = null
+            for (it in index .. 3) {
+                val a = sortedBackgrounds[it]
+                if (displayControl isBg a.index && (bg == null || bg.priority > a.priority)) {
+                    tmpIndex = it
+                    bg = a
+                }
+            }
+
+            if (bg == null) break
+            val tmp = sortedBackgrounds[index]
+            sortedBackgrounds[index] = bg
+            sortedBackgrounds[tmpIndex] = tmp
+
+            index++
+        }
+
+        return index
+    }
+
+    fun renderMixedBuffers() {
+        val sortedBackgroundsSize = sortBackgrounds()
         val backdrop = getBackdropColor()
 
         processSpriteMosaic()
@@ -164,57 +190,12 @@ class PPU(
         if (displayControl.isWin0 || displayControl.isWin1 || displayControl.isWinObj) {
             fillWindowLut()
             for (pixel in 0 until 240) {
-                mixBuffers(sortedBackgrounds, backdrop, pixel)
+                val isEnabled = windowIsEnabled[getCurrentWindow(pixel)]
+                mixBuffers(sortedBackgroundsSize, backdrop, pixel) { isEnabled[it] }
             }
         } else {
             for (pixel in 0 until 240) {
-                var bottomColor = backdrop
-                var topColor = backdrop
-                var bottomPriority = TransparentPriority
-                var topPriority = TransparentPriority
-                var topIndex = PixelType.Backdrop
-                var bottomIndex = PixelType.Backdrop
-
-                for (it in sortedBackgrounds) {
-                    if (lineBuffers[it.index][pixel] != 0) {
-                        if (it.priority < topPriority) {
-                            topPriority = it.priority
-                            topIndex = it.index
-                            topColor = lineBuffers[it.index][pixel]
-                        } else {
-                            bottomPriority = it.priority
-                            bottomIndex = it.index
-                            bottomColor = lineBuffers[it.index][pixel]
-
-                            break
-                        }
-                    }
-                }
-
-                val spritePixel = spriteBuffer[pixel]
-                if (spritePixel.priority != TransparentPriority) {
-                    if (spritePixel.priority <= topPriority) {
-                        bottomIndex = topIndex
-                        bottomColor = topColor
-                        topIndex = PixelType.Sprite
-                        topColor = spritePixel.color.toInt()
-                    } else if (spritePixel.priority <= bottomPriority) {
-                        bottomIndex = PixelType.Sprite
-                        bottomColor = spritePixel.color.toInt()
-                    }
-                }
-
-                val isTopFirstTarget = blend isFirst topIndex
-                val isBottomSecondTarget = blend isSecond bottomIndex
-                finalBuffer[pixel] = when {
-                    isTopFirstTarget && isBottomSecondTarget && blend.mode == 1 ||
-                            topIndex == PixelType.Sprite && spritePixel.isSemiTransparent && isBottomSecondTarget -> alphaBlend(
-                        topColor,
-                        bottomColor
-                    ).toColor()
-                    blend.mode > 1 && isTopFirstTarget -> brightnessBlend(topColor).toColor()
-                    else -> topColor.toColor()
-                }
+                mixBuffers(sortedBackgroundsSize, backdrop, pixel) { true }
             }
         }
 
@@ -222,9 +203,12 @@ class PPU(
     }
 
 
-    fun mixBuffers(bgs: Array<BackgroundControl>, backdrop: Int, pixel: Int) {
-        val isEnabled = windowIsEnabled[getCurrentWindow(pixel)]
-
+    private inline fun mixBuffers(
+        bgSize: Int,
+        backdrop: Int,
+        pixel: Int,
+        isEnabled: (Int) -> Boolean
+    ) {
         var bottomColor = backdrop
         var topColor = backdrop
         var bottomPriority = TransparentPriority
@@ -232,16 +216,18 @@ class PPU(
         var topIndex = PixelType.Backdrop
         var bottomIndex = PixelType.Backdrop
 
-        for (it in bgs) {
-            if (isEnabled[it.index] && lineBuffers[it.index][pixel] != 0) {
-                if (it.priority < topPriority) {
-                    topPriority = it.priority
-                    topIndex = it.index
-                    topColor = lineBuffers[it.index][pixel]
+        for (it in 0 until bgSize) {
+            val bg = sortedBackgrounds[it]
+
+            if (isEnabled(bg.index) && lineBuffers[bg.index][pixel] != 0) {
+                if (bg.priority < topPriority) {
+                    topPriority = bg.priority
+                    topIndex = bg.index
+                    topColor = lineBuffers[bg.index][pixel]
                 } else {
-                    bottomPriority = it.priority
-                    bottomIndex = it.index
-                    bottomColor = lineBuffers[it.index][pixel]
+                    bottomPriority = bg.priority
+                    bottomIndex = bg.index
+                    bottomColor = lineBuffers[bg.index][pixel]
 
                     break
                 }
@@ -249,7 +235,7 @@ class PPU(
         }
 
         val spritePixel = spriteBuffer[pixel]
-        if (isEnabled[PixelType.Sprite] && spritePixel.priority != TransparentPriority) {
+        if (isEnabled(PixelType.Sprite) && spritePixel.priority != TransparentPriority) {
             if (spritePixel.priority <= topPriority) {
                 bottomIndex = topIndex
                 bottomColor = topColor
@@ -263,7 +249,7 @@ class PPU(
 
         val isTopFirstTarget = blend isFirst topIndex
         val isBottomSecondTarget = blend isSecond bottomIndex
-        val isSpecial = isEnabled[SpecialEffectsLut]
+        val isSpecial = isEnabled(SpecialEffectsLut)
         finalBuffer[pixel] = when {
             isSpecial &&
                     ((isTopFirstTarget && isBottomSecondTarget && blend.mode == 1) ||
