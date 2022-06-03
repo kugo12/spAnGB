@@ -4,11 +4,11 @@ package spAnGB.lwjgl3
 
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3Application
 import com.badlogic.gdx.backends.lwjgl3.Lwjgl3ApplicationConfiguration
-import spAnGB.MainClasss
+import spAnGB.Application
 
 /** Launches the desktop (LWJGL3) application. */
 fun main() {
-    Lwjgl3Application(MainClasss(), Lwjgl3ApplicationConfiguration().apply {
+    Lwjgl3Application(Application(), Lwjgl3ApplicationConfiguration().apply {
         setTitle("spAnGB")
         setWindowedMode(1280, 720)
         setWindowIcon(*(

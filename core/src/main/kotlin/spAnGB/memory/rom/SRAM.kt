@@ -2,6 +2,7 @@ package spAnGB.memory.rom
 
 import spAnGB.memory.Memory
 import spAnGB.utils.KiB
+import spAnGB.utils.set
 import spAnGB.utils.uInt
 import spAnGB.utils.uShort
 import java.nio.ByteBuffer
@@ -12,6 +13,8 @@ const val SRAM_MASK = 0x7FFF
 class SRAM: Memory {
     val byteBuffer = ByteBuffer.allocateDirect(32 * KiB).apply {
         order(ByteOrder.LITTLE_ENDIAN)
+        for (it in 0 until capacity())
+            put(it, 0xFF.toByte())
     }
 
     override fun read8(address: Int): Byte {

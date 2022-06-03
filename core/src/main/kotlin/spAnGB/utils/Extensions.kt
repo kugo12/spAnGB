@@ -2,6 +2,9 @@
 
 package spAnGB.utils
 
+import java.nio.ByteBuffer
+import java.nio.IntBuffer
+import java.nio.ShortBuffer
 import kotlin.experimental.and
 
 inline val Int.hex: String get() = Integer.toHexString(this)
@@ -12,6 +15,10 @@ inline infix fun Int.unsetBit(bit: Int) = and((1 shl bit).inv())
 inline infix fun Int.setBit(bit: Int) = or(1 shl bit)
 inline fun Int.setBit(bit: Int, value: Boolean) = if (value) unsetBit(bit) else setBit(bit)
 inline fun Int.override(mask: Int, with: Int) = and(mask.inv()).or(with and mask)
+
+inline operator fun ByteBuffer.set(index: Int, value: Byte): ByteBuffer = put(index, value)
+inline operator fun ShortBuffer.set(index: Int, value: Short): ShortBuffer = put(index, value)
+inline operator fun IntBuffer.set(index: Int, value: Int): IntBuffer = put(index, value)
 
 inline fun Boolean.toInt(): Int = if (this) 1 else 0
 

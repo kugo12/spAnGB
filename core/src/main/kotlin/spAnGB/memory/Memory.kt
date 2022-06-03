@@ -14,9 +14,9 @@ interface Memory {
 
     companion object {
         val silentStub = object : Memory {
-            override fun read8(address: Int): Byte = 0
-            override fun read16(address: Int): Short = 0
-            override fun read32(address: Int): Int = 0
+            override fun read8(address: Int): Byte = 0xFF.toByte()
+            override fun read16(address: Int): Short = 0xFFFF.toShort()
+            override fun read32(address: Int): Int = 0xFFFFFFFF.toInt()
             override fun write8(address: Int, value: Byte) {}
             override fun write16(address: Int, value: Short) {}
             override fun write32(address: Int, value: Int) {}

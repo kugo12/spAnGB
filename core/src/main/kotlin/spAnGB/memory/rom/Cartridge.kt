@@ -33,10 +33,12 @@ class Cartridge(
         }
 
         val persistenceType = rom.toString(Charset.defaultCharset()).findAnyOf(test)
+
         persistence = persistenceType?.let { (_, type) ->
             when (type) {
                 "SRAM_V" -> SRAM()
-                "FLASH1M_V" -> FlashStub()
+                "FLASH1M_V" -> Flash()
+                "FLASH_V" -> Flash(FlashType.Macronix64)
                 "EEPROM_V" -> SRAM()
                 else -> TODO("$type not supported rn")
             }

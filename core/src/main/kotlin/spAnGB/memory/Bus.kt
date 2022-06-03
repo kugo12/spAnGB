@@ -4,6 +4,7 @@ package spAnGB.memory
 
 import spAnGB.Scheduler
 import spAnGB.apu.APU
+import spAnGB.apu.SampleConsumer
 import spAnGB.cpu.CPU
 import spAnGB.memory.dma.DMAManager
 import spAnGB.memory.mmio.MMIO
@@ -22,9 +23,10 @@ enum class AccessType { NonSequential, Sequential }
 class Bus(
     framebuffer: ByteBuffer,
     blitFramebuffer: () -> Unit,
+    sampleConsumer: SampleConsumer,
     val scheduler: Scheduler
 ) {
-    val apu = APU(scheduler)
+    val apu = APU(scheduler, sampleConsumer)
     val mmio = MMIO(this)
     var bios: Memory = Memory.stub
     var unusedMemory: Memory = Memory.stub

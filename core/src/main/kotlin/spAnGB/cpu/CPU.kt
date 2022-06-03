@@ -74,14 +74,16 @@ class CPU(val bus: Bus) {
     var instr = 0
     var instruction = 0
 
-    fun reset() {
-//        registers[0] = 0x08000000
-//        registers[1] = 0xEA
-//        registers[13] = 0x3007F00
-//        pc = 0x08000000
-//        registerBanks[CPUMode.Supervisor][0] = 0x3007FE0
-//        registerBanks[CPUMode.Interrupt][0] = 0x3007FA0
-//        cpsr = 0x6000001F
+    fun setUp(skipBios: Boolean) {
+        if (skipBios) {
+            registers[0] = 0x08000000
+            registers[1] = 0xEA
+            registers[13] = 0x3007F00
+            pc = 0x08000000
+            registerBanks[CPUMode.Supervisor][0] = 0x3007FE0
+            registerBanks[CPUMode.Interrupt][0] = 0x3007FA0
+            cpsr = 0x6000001F
+        }
 
         armRefill()
     }

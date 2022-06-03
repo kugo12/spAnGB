@@ -19,7 +19,7 @@ const val APU_CLOCK = (CLOCK_SPEED / SAMPLING_RATE).toLong()
 const val FS_CLOCK = (CLOCK_SPEED / 512).toLong()
 const val AUDIO_BUFFER_SIZE = 4096
 
-class AudioManager {
+class AudioManager: SampleConsumer {
     val audio = Gdx.audio.newAudioDevice(SAMPLING_RATE, false)
     val buffer = ShortArray(AUDIO_BUFFER_SIZE)
 
@@ -29,7 +29,7 @@ class AudioManager {
 
     val scope = CoroutineScope(Dispatchers.Default)
 
-    fun putSamples(left: Int, right: Int) {
+    override fun putSample(left: Int, right: Int) {
         buffer[ptr] = left.toShort()
         buffer[ptr + 1] = right.toShort()
         ptr += 2
@@ -50,10 +50,14 @@ class AudioManager {
     }
 }
 
+fun interface SampleConsumer {
+    fun putSample(left: Int, right: Int)
+}
+
 class APU(  // TODO: i'm currently making it work, but I really need to do refactoring in future
-    val scheduler: Scheduler
+    val scheduler: Scheduler,
+    val sampleConsumer: SampleConsumer
 ) {
-    val audio = AudioManager()
 
     val sweep = SweepToneChannel(scheduler)
     val tone = ToneChannel(scheduler)
@@ -99,7 +103,7 @@ class APU(  // TODO: i'm currently making it work, but I really need to do refac
         left *= volume.volumeLeft
         right *= volume.volumeRight
 
-        audio.putSamples(left * 4, right * 4)
+        sampleConsumer.putSample(left * 4, right * 4)
     }
 
     var fsCounter = 0

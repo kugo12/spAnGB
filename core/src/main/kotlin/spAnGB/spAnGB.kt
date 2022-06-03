@@ -1,5 +1,7 @@
 package spAnGB
 
+import spAnGB.apu.AudioManager
+import spAnGB.apu.SampleConsumer
 import spAnGB.cpu.CLOCK_SPEED
 import spAnGB.memory.rom.Bios
 import spAnGB.memory.Bus
@@ -13,13 +15,16 @@ const val CYCLES_PER_FRAME = CLOCK_SPEED / 60
 class spAnGB(
     framebuffer: ByteBuffer,
     blitFramebuffer: () -> Unit,
-    rom: File = File("firered.gba"),
-    bios: File = File("bios.bin")
+    rom: File = File("flash128.gba"),
+    bios: File = File("bios.bin"),
+    skipBios: Boolean = false,
+    sampleConsumer: SampleConsumer = AudioManager()
 ) {
     val scheduler = Scheduler()
     val bus = Bus(
         framebuffer,
         blitFramebuffer,
+        sampleConsumer,
         scheduler = scheduler
     )
     val cpu = bus.cpu
@@ -29,7 +34,7 @@ class spAnGB(
         bus.bios = Bios(bios, bus, cpu, unused)
         bus.unusedMemory = unused
         bus.loadCartridge(rom)
-        cpu.reset()
+        cpu.setUp(skipBios)
     }
 
     fun tick() {
